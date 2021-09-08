@@ -1,107 +1,46 @@
 ---
-title: "Thompson Exploration"
+title: "Wang 2021 Exploration"
 author: "Martin Zettersten"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
 ---
 
-```{r setup}
+```{r results='hide', message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE,warning=FALSE, message = FALSE)
 library(tidyverse)
 library(here)
 library(cowplot)
+library(janitor)
 ```
 
 ## Load data
 
 ```{r}
-d <- read_csv(here("power_analysis","data","dfthompson2014.trialdata.csv"))
+d <- read_csv(here("power_analysis","data","Wang2021_Longitudinal_8_22_16.csv")) %>%
+  clean_names()
 ```
-## transform to long format
+## look at preference distribution
+
+```{r}
+ggplot(d,aes(x="Novelty",y=novelty_vrm)) +
+  geom_violin(width=0.5)+
+  geom_hline(yintercept=0.5,linetype="dashed")+
+  geom_dotplot(binaxis="y",stackdir = "center")
+  
+```
+
 
 ```{r}
 d_long <- d %>%
   pivot_longer(
-    cols=c("novel","famil"),
+    cols=c("faces_vrm","shapes_vrm"),
     names_to = "stimulus_type",
-    values_to = "looking_time"
-  ) %>%
-  mutate(
-    looking_time_s = looking_time * 0.1
+    values_to = "novelty_pref"
   )
-  
 
+ggplot(d_long,aes(stimulus_type,novelty_pref,color=stimulus_type, fill=stimulus_type))+
+  geom_violin(width=0.5,alpha=0.2)+
+  geom_hline(yintercept=0.5,linetype="dashed")+
+  geom_dotplot(binaxis="y",stackdir = "center")
 ```
 
-
-
-## Inspect distributions
-
-```{r}
-ggplot(d_long,aes(looking_time_s,fill=stimulus_type,group=stimulus_type))+
-  geom_histogram()+
-  facet_wrap(~stimulus_type)+
-  theme(legend.position="none")
-```
-
-## Novel looking across trials
-
-```{r}
-#summarize looking within subjects across session
-avg_noveltypref_subj_by_trial <- d %>%
-  group_by(id,trnum) %>%
-  summarize(
-    novelty_pref=mean(pctnovel, na.rm=TRUE)*.01,
-    avg_novel_looking_time_s = mean(novel)*0.1,
-    avg_fam_looking_time_s = mean(famil) * 0.1
-  )
-#summarize across subjects
-avg_noveltypref_by_trial <- avg_noveltypref_subj_by_trial %>%
-  group_by(trnum) %>%
-  summarize(
-    N=n(),
-    novelty_preference=mean(novelty_pref,na.rm=TRUE),
-    se=qt(0.975, N-1)*sd(novelty_pref,na.rm=TRUE)/sqrt(N),
-    novel_looking_time_s = mean(avg_novel_looking_time_s),
-    fam_looking_time_s = mean(avg_fam_looking_time_s)
-  )
-```
-
-Plot 
-
-```{r}
-ggplot(avg_noveltypref_by_trial,aes(trnum,novelty_preference))+
-  geom_line()+
-  geom_errorbar(aes(ymin=novelty_preference-se,ymax=novelty_preference+se),width=0)+
-  geom_point(size=1.5)+
-  geom_hline(yintercept=0.5,linetype="dashed")
-
-
-```
-
-```{r}
-ggplot(avg_noveltypref_by_trial,aes(trnum,novel_looking_time_s))+
-  geom_line(color="blue")+
-  geom_point(size=1.5,color="blue")+
-  geom_line(aes(y=fam_looking_time_s),color="red")+
-  geom_point(aes(y=fam_looking_time_s),size=1.5,color="red")
-
-## session based
-f <- ggplot(d,aes(trnum,y=famil,color=as.factor(id),group=as.factor(id))) +
-  geom_line(alpha=0.2)+
-  geom_point(size=1.5,alpha=0.2)+
-  geom_smooth(alpha=0.2,se=F)+
-  theme(legend.position="none")+
-  facet_wrap(~VISIT)+
-  coord_cartesian(ylim=c(0,125))
-
-n <- ggplot(d,aes(trnum,y=novel,color=as.factor(id),group=as.factor(id))) +
-  geom_line(alpha=0.2)+
-  geom_point(size=1.5,alpha=0.2)+
-  geom_smooth(alpha=0.2,se=F)+
-  theme(legend.position="none")+
-  facet_wrap(~VISIT)+
-  coord_cartesian(ylim=c(0,125))
-
-plot_grid(f,n)
-```
