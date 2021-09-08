@@ -1,0 +1,64 @@
+---
+title: "Peekbank RT Demo"
+author: "Martin Zettersten & the Peekbank Team"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+# Download peekbankr
+
+If you haven't downloaded peekbankr (https://github.com/langcog/peekbankr) yet, be sure to do so first by uncommenting the lines below.
+
+```{r}
+# install.packages("remotes") # can also use devtools
+# remotes::install_github("langcog/peekbankr")
+```
+
+
+# Preliminaries
+
+Load packages. 
+
+```{r}
+LOAD_ALL_DATA <- TRUE
+
+library(peekbankr)
+library(tidyverse)
+library(here)
+
+knitr::opts_chunk$set(cache = TRUE, arn = FALSE,warning=FALSE, message = FALSE,cache.lazy = FALSE)
+```
+
+# Data Loading
+
+1. Connect to the peekbank database
+2. Pull individual tables using peekbankr functions ("get_[name_of_table]"). For details on the specific tables, including a codebook, see the peekbank documentation: https://peekbank.stanford.edu/docs/documentation/
+3. Join these tables together to get a single tidy dataset in "long" format (each row is an observation at a particular timepoint)
+
+```{r, eval = LOAD_ALL_DATA}
+#connect to the database
+con <- connect_to_peekbank()
+#get all of the tables you need
+datasets <- get_datasets(connection = con) %>% collect()
+administrations <- get_administrations(connection = con) %>% collect()
+subjects <- get_subjects(connection = con) %>% collect()
+stimuli <- get_stimuli(connection = con) %>% collect()
+trial_types <- get_trial_types(connection = con) %>% collect()
+trials <- get_trials(connection = con)  %>% collect()
+aoi_timepoints <- get_aoi_timepoints(connection = con) %>% collect()
+
+aoi_data_joined <- aoi_timepoints %>%
+  right_join(administrations) %>%
+  right_join(subjects) %>%
+  right_join(trials) %>%
+  right_join(trial_types) %>%
+  right_join(datasets) %>%
+  mutate(target_stimulus_id = target_id) %>%
+  right_join(rename_with(stimuli, ~ paste("target",.x , sep = "_"))) %>%
+  mutate(distractor_stimulus_id = distractor_id) %>%
+  right_join(rename_with(stimuli, ~ paste("distractor",.x , sep = "_")))
+
+saveRDS(aoi_data_joined,here("power_analysis","data","aoi_data_joined.Rds"), )
+```
+
+

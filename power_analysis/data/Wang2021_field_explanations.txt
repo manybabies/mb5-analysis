@@ -1,0 +1,42 @@
+
+The following variables are found in the raw data (https://github.com/alecristia/phr-V-AnotB-VRM-longi/blob/master/Longitudinal_8_22_16.csv) and may be used in the analysis scripts:
+
+Subject # (Subject.. inside R): random child ID
+Gender: F if child is female, M if male
+18mCDIAge (X18mCDIAge inside R): Age at which 18mo CDI was collected
+18mCom (X18mCom inside R): Raw receptive score for 18mo CDI	
+18mComAll (X18mComAll inside R): 	
+18mComGenderSpec (X18mComGenderSpec inside R): Percentile adjusting for age & gender for receptive score for 18mo CDI
+18mSay (X18mSay inside R): Raw expressive score for 18mo CDI	
+18mSayAll (X18mSayAll inside R):	
+18mSayGenderSpec (X18mSayGenderSpec inside R): Percentile adjusting for age & gender for expressive score for 18mo CDI	
+24mCDIAge (X24mCDIAge inside R): Age at which 24mo CDI was collected	
+24mCom (X24mCom inside R): Raw receptive score for 24mo CDI - discarded early on because it is not typically part of the 24m instrument
+24msay	 (X24msay inside R): Raw expressive score for 24mo CDI
+24mSayALL (X24mSayALL inside R)	
+24mSayGenderSpec (X24mSayGenderSpec inside R): Percentile adjusting for age & gender expressive score for 24mo CDI	
+Mullen VR (Mullen.VR inside R):	
+MullenExL:	
+stress & VRM age (stress...VRM.age inside R): age at which stress & vrm tasks were collected	
+total tro pref quotient	(total.tro.pref.quotient inside R): performance in the stress task
+VRM trials completed (VRM.trials.completed inside R):	number of vrm trials completed
+VRM trials coded (VRM.trials.coded inside R): number of vrm trials coded
+VRM age	(VRM.age inside R): age at which vrm task was collected
+Novelty VRM (Novelty.VRM inside R): performance in VRM task (preference quotient) 
+faces VRM (faces.VRM inside R):	score for VRM for the faces problems only
+Shapes VRM (Shapes.VRM inside R): score for VRM for the shapes problems only	
+vowels Age (vowels.Age inside R): age at which vowel task was collected	
+Vowel Alt pref quotient	(Vowel.Alt.pref.quotient inside R): performance in vowel task (preference quotient)
+A not B Age (A.not.B.Age inside R): age at which a not b was collected (typically equal to vowels.Age but sometimes up to a week later)
+A not B score (A.not.B.score inside R): score in as classified into numeric (uninterpretable) terms	
+notes1: notes at the individual child level	
+notes2: general notes
+
+The following variables are NOT found in the raw data, but instead are generated within the analysis scripts:
+com18z: z-scored raw receptive vocabulary at 18m
+say18z: z-scored raw expressive vocabulary at 18m
+say24z: z-scored raw expressive vocabulary at 24m
+anotB: a not b performance as classified into three interpretable terms
+Stress: performance in stress task (preference quotient) = total.tro.pref.quotient
+VRM: performance in VRM task (preference quotient) = Novelty.VRM
+Vowel: performance in vowel task (preference quotient) = Vowel.Alt.pref.quotient
