@@ -11,6 +11,7 @@ library(tidyverse)
 library(here)
 library(cowplot)
 library(janitor)
+library(effectsize)
 ```
 
 ## Load data
@@ -42,5 +43,25 @@ ggplot(d_long,aes(stimulus_type,novelty_pref,color=stimulus_type, fill=stimulus_
   geom_violin(width=0.5,alpha=0.2)+
   geom_hline(yintercept=0.5,linetype="dashed")+
   geom_dotplot(binaxis="y",stackdir = "center")
+```
+## Quick computation of effect sizes for meta-analysis
+
+```{r}
+#overall 
+cohens_d(d$novelty_vrm,mu=0.5)
+
+#faces
+t.test(d$faces_vrm,mu=0.5)
+sd(d$faces_vrm,na.rm=TRUE)
+cohens_d(d$faces_vrm,mu=0.5)
+sum(!is.na((d$faces_vrm)))
+
+#patterns
+t.test(d$shapes_vrm,mu=0.5)
+sd(d$shapes_vrm,na.rm=TRUE)
+cohens_d(d$shapes_vrm,mu=0.5)
+sum(!is.na((d$shapes_vrm)))
+
+
 ```
 
