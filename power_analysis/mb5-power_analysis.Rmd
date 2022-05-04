@@ -15,20 +15,20 @@ library(lmerTest)
 ## Design
 
 
-For this power analysis we will simulate 20 labs contributing 20 infants (400 participants) from 5 to 12 months of age.
+For this power analysis we will simulate 20 labs contributing 32 infants (640 participants) from 3 to 15 months of age.
 
 Notes: MB1 overall effect size was 0.29 for the single-screen central fixation (CF) method, with additional effect of 0.21 for HPP, and eye-tracking (ET) yielding a slight (non-significant) decrease in effect of -0.06.
-We expect to have 5-6 labs running HPP (100-120 infants), and the other 15-20 labs running CF/ET.
+We expect to have X labs running infant-controlled familiarization duration, and the other 20-X labs running a fixed familiarization procedure.
 
 Factors:
 
 * *stimulus_type*: indicates the type (complexity/difficulty) of the stimuli that infants are familiarized with during training (high/low stimulus type; within-infant, 12 per type)
 
-* *familiarization_time*: indicates how long each stimulus is exposed during familiarization (5, 10, or 20 seconds; within-infant) 
+* *familiarization_time*: indicates how long each stimulus is exposed during familiarization (5, 10, or 20 seconds; within-infant) GK: the RR says 5, 10, or 15 s -- longest is 15, or 20?
 
 * *trial_num*: indicates the sequential order in which test trials were presented. Trial number thus ranges from 1 to 24. 
 
-* *age_mos*: the infants' age in months (5.0-12.0), centered in *age* column.
+* *age_mos*: the infants' age in months (3.0-15.0), centered in *age* column.
 
 * *procedure*: indicates the experimental method that was used to record infants’ looking to the stimuli: infant-controlled exposure (IC; total familiarization time is achieved over uncontrolled period of time) vs. fixed-duration exposure (FD; controlled period of exposure, unknown period of infant fixation)
 
@@ -42,43 +42,53 @@ Note that we generate normally-distributed looking times, assuming that they hav
 ```{r simulate-data}
 set.seed(123) # reproducible sampling
 
-generate_dataset <- function(n_labs=20, n_per_lab=20, effect_sizes=list(type = .3, age = 0, "age*type"=0)) {
+generate_dataset <- function(n_labs=20, n_per_lab=32, 
+                             effect_sizes=list(type = .3, familiarization = .1, age = 0, "age*type"=0,
+                                               "age*familiarization"=0, "type*familiarization"=0)) {
   # rewrite to use expand.grid ?
   labID = rep(LETTERS[1:n_labs], each=n_per_lab)
   subjID = 1:(n_labs*n_per_lab)
 
+  familiarization_times = c(5,10,20)
+  stimulus_types = c(rep("high",4), rep("low",4))
+  # trials each subject gets (but randomly ordered)
+  fam_by_stim = expand.grid(fam_time = familiarization_times, stimulus_type = stimulus_types)
+  
   # assume each lab uses one procedure
   lab_procedure = sample(c("IC","FD"), n_labs, replace=T, prob=c(.5,.5)) # 50/50 IC / FD procedures?
   procedure = rep(lab_procedure, each=n_per_lab)
 
   test_order = rep(1:4, 5*n_labs) 
 
-  # stimulus_type (ms says randomly assigned: we don't want counterbalanced per lab?)
-  stimulus_type = sample(c("high","low"), length(subjID), replace=T)
-
-  simd <- tibble(subjID, labID, procedure, test_order, stimulus_type)
+  # per-subject data
+  simd <- tibble(subjID, labID, procedure, test_order)
 
   # uniform random vars
-  simd$age_mos = runif(nrow(simd), min=5.0, max=12.0)
+  simd$age_mos = runif(nrow(simd), min=3.0, max=15.0)
   simd$age = scale(simd$age_mos, center=T, scale=T)[,1]
-
-  # now generate looking times for 24 trials per subject
-  for(t in 1:24) {
-    simd[,paste0("trial.",t)] = rnorm(n = nrow(simd), mean=0, sd=1) # = .05
-  } 
   
-  siml <- simd %>% pivot_longer(cols=starts_with("trial."), 
-                     names_to="trial_num", 
-                     names_prefix="trial.",
-                     values_to="looking_time") 
-
-  siml$trial_num = as.numeric(siml$trial_num)
+  # generate per-subject data, put in long (row per-trial) df
+  siml <- tibble()
+  for(i in 1:nrow(simd)) {
+    # randomized trial order (but maybe should be done according to preset pseudorandom orders?)
+    tmp_sdat <- fam_by_stim[sample(1:nrow(fam_by_stim), size=nrow(fam_by_stim), replace=F),]
+    # need novel and familiar looking times, to calculate prop_novel -- 
+    # UNLESS prop_novel turns out to be normally-distributed 
+    # (which would be easier to generate, requiring fewer assumptions) - check empirical trial-level data
+    siml <- siml %>% 
+      bind_rows(tmp_sdat %>%
+        mutate(novel_looking_time = rnorm(n = nrow(tmp_sdat), mean=0, sd=1), # = .05
+               familiar_looking_time = rnorm(n = nrow(tmp_sdat), mean=0, sd=1), # = .05
+               prop_novel = novel_looking_time / (novel_looking_time + familiar_looking_time),
+               trial_num = 1:nrow(tmp_sdat)))
+  }
+  
   siml$trial_num_sc = scale(siml$trial_num, center=T, scale=T) 
 
   # 12 high / 12 low per child; should be according to 1 of 4 pseudorandom orders, but we're not  actually modeling order effects here so just make blocks:
-  siml$trial_type = rep_len(c(rep("same", 12), rep("different", 12)), nrow(siml)) # each
+  siml$trial_type = rep_len(c(rep("high", 12), rep("low", 12)), nrow(siml)) # each
 
-  per_subj_trial_type = c(rep("same", 12), rep("different", 12))
+  per_subj_trial_type = c(rep("high", 12), rep("low", 12))
   # add subject random intercept
   siml$subjInt = 0.0
   for(s in 1:length(unique(siml$subjID))) {
