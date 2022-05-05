@@ -103,8 +103,10 @@ generate_dataset <- function(n_labs=20, n_per_lab=32,
     # rescale error to be >0
     # ToDo: scale familiarization time ?
     age_effect_subj = effect_sizes$age * rep(simd[i,]$age, nrow(tmp_sdat))
+    
+    # can we assume these are z-scored proportions of novel looking? maybe truncate them?
     # ToDo: check if problems when effect sizes are 0?
-    tmp_sdat$zscores = effect_sizes$type * stimulus_type + # main
+    tmp_sdat$dv_zscore = effect_sizes$type * stimulus_type + # main
       age_effect_subj +  # main
       effect_sizes$familiarization * tmp_sdat$fam_time +  # main
       effect_sizes$`age*type` * stimulus_type * effect_sizes$type * age_effect_subj + 
@@ -114,26 +116,27 @@ generate_dataset <- function(n_labs=20, n_per_lab=32,
       error_term
     # standardize from normal means to beta mean: .5+/-.3 ??
     siml <- siml %>% 
-      bind_rows(tmp_sdat %>%
-        mutate(prop_novel = rnorm(n=nrow(tmp_sdat), shape1=??, shape2=??)
-               # mean_beta = .5 + familiarization_time*age*type
+      bind_rows(tmp_sdat %>% mutate(subjID = simd[i,]$subjID,
+                                    labID = simd[i,]$labID,
+                                    age = simd[i,]$age,
+                                    age_mos = simd[i,]$age_mos,
+                                    subjInt = simd[i,]$subjInt,
+                                    labInt = simd[i,]$labInt,
+                                    trial_num = 1:nrow(tmp_sdat)))
+          #novel_looking_time = rnorm(n = nrow(tmp_sdat), mean=0, sd=1), # = .05
+          #familiar_looking_time = rnorm(n = nrow(tmp_sdat), mean=0, sd=1), # = .05
+          #prop_novel = novel_looking_time / (novel_looking_time + familiar_looking_time), # use beta distribution?
+          #prop_novel = rbeta(n=nrow(tmp_sdat), shape1=??, shape2=??)
+          # mean_beta = .5 + familiarization_time*age*type
                # how to choose beta parameters: more non-central = more of a novelty/familiarity effect
-               trial_num = 1:nrow(tmp_sdat)))
   }
   
-  #novel_looking_time = rnorm(n = nrow(tmp_sdat), mean=0, sd=1), # = .05
-  #familiar_looking_time = rnorm(n = nrow(tmp_sdat), mean=0, sd=1), # = .05
-  #prop_novel = novel_looking_time / (novel_looking_time + familiar_looking_time), # use beta distribution?
-  
   siml$trial_num_sc = scale(siml$trial_num, center=T, scale=T) 
-  
   
   siml$subjID = as.factor(siml$subjID)
   # switch from dummy-code to effects code 
   siml$stimulus_type = as.factor(siml$stimulus_type)
-  siml$trial_type = as.factor(siml$trial_type)
   contrasts(siml$stimulus_type) = contr.sum(2)
-  contrasts(siml$trial_type) = contr.sum(2)
   return(siml)
 }
 
@@ -144,20 +147,30 @@ generate_dataset <- function(n_labs=20, n_per_lab=32,
 We generate and plot an example dataset with trial_type main effect size of .3, age main effect size of -.2, and an age*trial_type interaction effect size of .3.
 
 ```{r, fig.width=6, fig.height=4.5, caption="Log(looking time) by trial type and trial number with a simulated main effect (Cohen's d=.3) of trial type, age effect (d=-.2), and trial type * age interaction (d=.3). Shaded regions denote bootstrapped 95% confidence intervals."}
-#siml = generate_dataset(effect_sizes=list(type = .3, age = 0, "age*type"=0))
-siml = generate_dataset(effect_sizes=list(type = .3, age = -.2, "age*type"=.3))
 
-dag <- siml %>% group_by(subjID, trial_type, age_mos) %>%
-  summarise(looking_time = mean(looking_time)) %>% 
-  group_by(trial_type, age_mos) %>%
-  tidyboot::tidyboot_mean(looking_time) # quite slow..
+siml = generate_dataset(effect_sizes=list(type = .1, familiarization = .1, age = .1, "age*type"=0,
+                                               "age*familiarization"=0, "type*familiarization"=.1,
+                                               "type*age*familiarization"=.1))
+
+dag <- siml %>% mutate(age_group = )
+  group_by(subjID, stimulus_type, fam_time, age_group) %>%
+  summarise(dv_zscore = mean(dv_zscore)) %>% 
+  group_by(stimulus_type, fam_time, age_mos) %>%
+  tidyboot::tidyboot_mean(dv_zscore) # quite slow..
 
 pos = position_dodge(width=.2)
-ggplot(dag, aes(x=age_mos, y=mean, group=trial_type, color=trial_type)) + 
+ggplot(dag, aes(x=fam_time, y=mean, group=stimulus_type, color=stimulus_type)) + 
   geom_point(aes(y=mean, x=age_mos), pos=pos) + 
-  ylab("Standardized log(looking time)") + xlab("Age (months)") + 
+  ylab("Standardized proportion novel looking") + xlab("Age (months)") + 
   geom_linerange(aes(ymin=ci_lower, ymax=ci_upper), pos=pos) + 
   theme_bw() + geom_smooth(method="lm")
+
+#ggplot(dag, aes(x=age_mos, y=mean, group=stimulus_type, color=stimulus_type)) + 
+#  facet_wrap(. ~ fam_time) + 
+#  geom_point(aes(y=mean, x=age_mos), pos=pos) + 
+#  ylab("Standardized proportion novel looking") + xlab("Age (months)") + 
+#  geom_linerange(aes(ymin=ci_lower, ymax=ci_upper), pos=pos) + 
+#  theme_bw() + geom_smooth(method="lm")
 ```
 
 
