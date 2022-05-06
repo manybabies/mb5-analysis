@@ -152,17 +152,22 @@ siml = generate_dataset(effect_sizes=list(type = .1, familiarization = .1, age =
                                                "age*familiarization"=0, "type*familiarization"=.1,
                                                "type*age*familiarization"=.1))
 
-dag <- siml %>% mutate(age_group = )
+d_sub <- siml %>% mutate(age_group = cut_interval(age_mos, length=3)) %>%
+  group_by(subjID, stimulus_type, fam_time, age_group) %>%
+  summarise(dv_zscore = mean(dv_zscore)) 
+
+dag <- siml %>% mutate(age_group = cut_interval(age_mos, length=3)) %>%
   group_by(subjID, stimulus_type, fam_time, age_group) %>%
   summarise(dv_zscore = mean(dv_zscore)) %>% 
-  group_by(stimulus_type, fam_time, age_mos) %>%
+  group_by(stimulus_type, fam_time, age_group) %>%
   tidyboot::tidyboot_mean(dv_zscore) # quite slow..
 
 pos = position_dodge(width=.2)
 ggplot(dag, aes(x=fam_time, y=mean, group=stimulus_type, color=stimulus_type)) + 
-  geom_point(aes(y=mean, x=age_mos), pos=pos) + 
+  facet_wrap(. ~ age_group) + 
   ylab("Standardized proportion novel looking") + xlab("Age (months)") + 
   geom_linerange(aes(ymin=ci_lower, ymax=ci_upper), pos=pos) + 
+  geom_point(data=d_sub, aes(x=jitter(fam_time), y=dv_zscore), alpha=.2) + 
   theme_bw() + geom_smooth(method="lm")
 
 #ggplot(dag, aes(x=age_mos, y=mean, group=stimulus_type, color=stimulus_type)) + 
