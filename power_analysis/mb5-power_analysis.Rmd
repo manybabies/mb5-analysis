@@ -24,7 +24,7 @@ Factors:
 
 * *stimulus_type*: indicates the type (complexity/difficulty) of the stimuli that infants are familiarized with during training (high/low stimulus type; within-infant, 12 per type)
 
-* *familiarization_time*: indicates how long each stimulus is exposed during familiarization (5, 10, or 20 seconds; within-infant) GK: the RR says 5, 10, or 15 s -- longest is 15, or 20?
+* *familiarization_time*: indicates how long each stimulus is exposed during familiarization (5, 10, or 15 seconds; within-infant) 
 
 * *trial_num*: indicates the sequential order in which test trials were presented. Trial number thus ranges from 1 to 24. 
 
@@ -40,16 +40,30 @@ Note that we generate normally-distributed looking times, assuming that they hav
 ## Simulate Datasets
 
 ```{r simulate-data}
+# To use the rbeta function, we need to supply two shape functions that correspond to the mean and the 
+# variance of the data. To get those shape parameters, we will use the get.ab function below from 
+# Mijke Rhemtulla/ Minhajuddin et al. (2004)
+get.ab <- function(mu, var){
+  v <- var
+  w <- mu/(1-mu)
+  b <- ((w/ (v*(w^2 + 2*w + 1))) - 1)  / (w + 1)
+  a <- b*w
+  return(list(a = a, b = b))
+}
+
 set.seed(123) # reproducible sampling
 
 generate_dataset <- function(n_labs=20, n_per_lab=32, 
-                             effect_sizes=list(type = .3, familiarization = .1, age = 0, "age*type"=0,
-                                               "age*familiarization"=0, "type*familiarization"=0)) {
+                             effect_sizes=list(type = .3, familiarization = .1, age = .1, "age*type"=.1,
+                                               "age*familiarization"=0, "type*familiarization"=0,
+                                               "type*age*familiarization"=.1)) { 
+  # critical test is the 3-way interaction?
+  
   # rewrite to use expand.grid ?
   labID = rep(LETTERS[1:n_labs], each=n_per_lab)
   subjID = 1:(n_labs*n_per_lab)
 
-  familiarization_times = c(5,10,20)
+  familiarization_times = c(5,10,15)
   stimulus_types = c(rep("high",4), rep("low",4))
   # trials each subject gets (but randomly ordered)
   fam_by_stim = expand.grid(fam_time = familiarization_times, stimulus_type = stimulus_types)
@@ -58,16 +72,25 @@ generate_dataset <- function(n_labs=20, n_per_lab=32,
   lab_procedure = sample(c("IC","FD"), n_labs, replace=T, prob=c(.5,.5)) # 50/50 IC / FD procedures?
   procedure = rep(lab_procedure, each=n_per_lab)
 
-  test_order = rep(1:4, 5*n_labs) 
-
+  test_order = rep(1:4, n_per_lab/4*n_labs) 
+  
   # per-subject data
-  simd <- tibble(subjID, labID, procedure, test_order)
+  simd <- tibble(subjID, labID, procedure, test_order) %>%
+    mutate(subjInt = rnorm(length(subjID), mean=0, sd=1))
 
+  # add lab random intercept
+  simd$labInt = 0.0
+  for(lab in unique(labID)) {
+    labInd = which(simd$labID==lab)
+    simd[labInd,]$labInt = rnorm(1, mean=0, sd=1) # could increase per-lab variability ..
+  }
+  
   # uniform random vars
   simd$age_mos = runif(nrow(simd), min=3.0, max=15.0)
   simd$age = scale(simd$age_mos, center=T, scale=T)[,1]
   
   # generate per-subject data, put in long (row per-trial) df
+  
   siml <- tibble()
   for(i in 1:nrow(simd)) {
     # randomized trial order (but maybe should be done according to preset pseudorandom orders?)
@@ -75,45 +98,45 @@ generate_dataset <- function(n_labs=20, n_per_lab=32,
     # need novel and familiar looking times, to calculate prop_novel -- 
     # UNLESS prop_novel turns out to be normally-distributed 
     # (which would be easier to generate, requiring fewer assumptions) - check empirical trial-level data
+    stimulus_type = with(tmp_sdat, ifelse(stimulus_type=="high", .5, -.5)) 
+    error_term = rnorm(nrow(tmp_sdat), 0, sd=1) + simd[i,]$labInt + simd[i,]$subjInt # add random slopes? (e.g. by age..)
+    # rescale error to be >0
+    # ToDo: scale familiarization time ?
+    age_effect_subj = effect_sizes$age * rep(simd[i,]$age, nrow(tmp_sdat))
+    
+    # can we assume these are z-scored proportions of novel looking? maybe truncate them?
+    # ToDo: check if problems when effect sizes are 0?
+    tmp_sdat$dv_zscore = effect_sizes$type * stimulus_type + # main
+      age_effect_subj +  # main
+      effect_sizes$familiarization * tmp_sdat$fam_time +  # main
+      effect_sizes$`age*type` * stimulus_type * effect_sizes$type * age_effect_subj + 
+      effect_sizes$`age*familiarization` * age_effect_subj * tmp_sdat$fam_time * effect_sizes$familiarization + 
+      effect_sizes$`type*familiarization` * tmp_sdat$fam_time * stimulus_type * effect_sizes$type + 
+      effect_sizes$`type*age*familiarization` * stimulus_type * effect_sizes$type * age_effect_subj * tmp_sdat$fam_time * effect_sizes$familiarization + 
+      error_term
+    # standardize from normal means to beta mean: .5+/-.3 ??
     siml <- siml %>% 
-      bind_rows(tmp_sdat %>%
-        mutate(novel_looking_time = rnorm(n = nrow(tmp_sdat), mean=0, sd=1), # = .05
-               familiar_looking_time = rnorm(n = nrow(tmp_sdat), mean=0, sd=1), # = .05
-               prop_novel = novel_looking_time / (novel_looking_time + familiar_looking_time),
-               trial_num = 1:nrow(tmp_sdat)))
+      bind_rows(tmp_sdat %>% mutate(subjID = simd[i,]$subjID,
+                                    labID = simd[i,]$labID,
+                                    age = simd[i,]$age,
+                                    age_mos = simd[i,]$age_mos,
+                                    subjInt = simd[i,]$subjInt,
+                                    labInt = simd[i,]$labInt,
+                                    trial_num = 1:nrow(tmp_sdat)))
+          #novel_looking_time = rnorm(n = nrow(tmp_sdat), mean=0, sd=1), # = .05
+          #familiar_looking_time = rnorm(n = nrow(tmp_sdat), mean=0, sd=1), # = .05
+          #prop_novel = novel_looking_time / (novel_looking_time + familiar_looking_time), # use beta distribution?
+          #prop_novel = rbeta(n=nrow(tmp_sdat), shape1=??, shape2=??)
+          # mean_beta = .5 + familiarization_time*age*type
+               # how to choose beta parameters: more non-central = more of a novelty/familiarity effect
   }
   
   siml$trial_num_sc = scale(siml$trial_num, center=T, scale=T) 
-
-  # 12 high / 12 low per child; should be according to 1 of 4 pseudorandom orders, but we're not  actually modeling order effects here so just make blocks:
-  siml$trial_type = rep_len(c(rep("high", 12), rep("low", 12)), nrow(siml)) # each
-
-  per_subj_trial_type = c(rep("high", 12), rep("low", 12))
-  # add subject random intercept
-  siml$subjInt = 0.0
-  for(s in 1:length(unique(siml$subjID))) {
-    subjInd = which(siml$subjID==s)
-    siml[subjInd,]$trial_type = sample(per_subj_trial_type, 24, replace = F)
-    siml[subjInd,]$subjInt = rnorm(1, mean=0, sd=1)
-  }
-  
-  # add lab random intercept
-  siml$labInt = 0.0
-  for(lab in labID) {
-    labInd = which(siml$labID==lab)
-    siml[labInd,]$labInt = rnorm(1, mean=0, sd=1) # could increase per-lab variability ..
-  }
-  
-  trial_type = with(siml, ifelse(trial_type=="same", 0, 1)) 
-  error_term = rnorm(nrow(siml), 0, sd=1) + siml$labInt + siml$subjInt 
-  siml$looking_time = trial_type * effect_sizes$type + siml$age * effect_sizes$age + trial_type * siml$age * effect_sizes$`age*type` + error_term
   
   siml$subjID = as.factor(siml$subjID)
   # switch from dummy-code to effects code 
   siml$stimulus_type = as.factor(siml$stimulus_type)
-  siml$trial_type = as.factor(siml$trial_type)
   contrasts(siml$stimulus_type) = contr.sum(2)
-  contrasts(siml$trial_type) = contr.sum(2)
   return(siml)
 }
 
@@ -124,26 +147,42 @@ generate_dataset <- function(n_labs=20, n_per_lab=32,
 We generate and plot an example dataset with trial_type main effect size of .3, age main effect size of -.2, and an age*trial_type interaction effect size of .3.
 
 ```{r, fig.width=6, fig.height=4.5, caption="Log(looking time) by trial type and trial number with a simulated main effect (Cohen's d=.3) of trial type, age effect (d=-.2), and trial type * age interaction (d=.3). Shaded regions denote bootstrapped 95% confidence intervals."}
-#siml = generate_dataset(effect_sizes=list(type = .3, age = 0, "age*type"=0))
-siml = generate_dataset(effect_sizes=list(type = .3, age = -.2, "age*type"=.3))
 
-dag <- siml %>% group_by(subjID, trial_type, age_mos) %>%
-  summarise(looking_time = mean(looking_time)) %>% 
-  group_by(trial_type, age_mos) %>%
-  tidyboot::tidyboot_mean(looking_time) # quite slow..
+siml = generate_dataset(effect_sizes=list(type = .1, familiarization = .1, age = .1, "age*type"=0,
+                                               "age*familiarization"=0, "type*familiarization"=.1,
+                                               "type*age*familiarization"=.1))
+
+d_sub <- siml %>% mutate(age_group = cut_interval(age_mos, length=3)) %>%
+  group_by(subjID, stimulus_type, fam_time, age_group) %>%
+  summarise(dv_zscore = mean(dv_zscore)) 
+
+dag <- siml %>% mutate(age_group = cut_interval(age_mos, length=3)) %>%
+  group_by(subjID, stimulus_type, fam_time, age_group) %>%
+  summarise(dv_zscore = mean(dv_zscore)) %>% 
+  group_by(stimulus_type, fam_time, age_group) %>%
+  tidyboot::tidyboot_mean(dv_zscore) # quite slow..
 
 pos = position_dodge(width=.2)
-ggplot(dag, aes(x=age_mos, y=mean, group=trial_type, color=trial_type)) + 
-  geom_point(aes(y=mean, x=age_mos), pos=pos) + 
-  ylab("Standardized log(looking time)") + xlab("Age (months)") + 
+ggplot(dag, aes(x=fam_time, y=mean, group=stimulus_type, color=stimulus_type)) + 
+  facet_wrap(. ~ age_group) + 
+  ylab("Standardized proportion novel looking") + xlab("Age (months)") + 
   geom_linerange(aes(ymin=ci_lower, ymax=ci_upper), pos=pos) + 
+  geom_point(data=d_sub, aes(x=jitter(fam_time), y=dv_zscore), alpha=.2) + 
   theme_bw() + geom_smooth(method="lm")
+
+#ggplot(dag, aes(x=age_mos, y=mean, group=stimulus_type, color=stimulus_type)) + 
+#  facet_wrap(. ~ fam_time) + 
+#  geom_point(aes(y=mean, x=age_mos), pos=pos) + 
+#  ylab("Standardized proportion novel looking") + xlab("Age (months)") + 
+#  geom_linerange(aes(ymin=ci_lower, ymax=ci_upper), pos=pos) + 
+#  theme_bw() + geom_smooth(method="lm")
 ```
 
 
 ## Model Structure
 
-Infants' log(looking time) (DV) ~ 1 + familiarization order (ABB vs ABA) * trial_type + age * trial_type (same rule vs different rule at test) + experimental_method (HPP vs central fixation vs eye-tracking) * trial_type + multilingual_exposure * trial_type + trial_num * trial_type + (trial_num*trial_type | subject) + (test_order | lab)
+Infants' proportion of looking at novel object (DV) ~ 1 + familiarization time (5, 10, 15) * trial_type (high/low complexity) * age + (fam_time\*trial_type | subject) + (fam_time\*trial_type*age | lab) 
+<!-- https://docs.google.com/document/d/1vwPOBSnVtrmOb-brNlQq3DcAEcXCG1p1gFfywhuwXK8/edit -->
 
 ```{r model}
 # m1 <- lmer(looking_time ~ 1 + trial_type * 
