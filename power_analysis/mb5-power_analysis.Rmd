@@ -39,7 +39,7 @@ Note that we generate normally-distributed looking times, assuming that they hav
 
 ## Simulate Datasets
 
-```{r simulate-data}
+```{r, include=F, echo=F}
 # To use the rbeta function, we need to supply two shape functions that correspond to the mean and the 
 # variance of the data. To get those shape parameters, we will use the get.ab function below from 
 # Mijke Rhemtulla/ Minhajuddin et al. (2004)
@@ -51,10 +51,15 @@ get.ab <- function(mu, var){
   return(list(a = a, b = b))
 }
 
+```
+
+
+```{r simulate-data}
 set.seed(123) # reproducible sampling
 
 generate_dataset <- function(n_labs=30, n_per_lab=32, 
-                             effect_sizes=list(type = .3, familiarization = .1, age = .1, "age*type"=.1,
+                             effect_sizes=list(type = .3, familiarization = .1, 
+                                               age = .1, "age*type"=.1,
                                                "age*familiarization"=0, "type*familiarization"=0,
                                                "type*age*familiarization"=.1)) { 
   # critical test is the 3-way interaction?
@@ -146,30 +151,17 @@ generate_dataset <- function(n_labs=30, n_per_lab=32,
 
 We generate and plot an example dataset with stimulus *type* main effect size of .3, *age* main effect size of -.2, and an age*trial_type interaction effect size of .3.
 
-```{r, fig.width=6, fig.height=4.5, caption="z-scored proportion of novel looking by stimulus type by age, faceted by familiarization time. All simulated main and interaction effects are of size d=.3. Shaded regions denote bootstrapped 95% confidence intervals."}
+```{r, fig.width=6, fig.height=4.5, echo=F, caption="z-scored proportion of novel looking by stimulus type by age, faceted by familiarization time. All simulated main and interaction effects are of size d=.3. Shaded regions denote bootstrapped 95% confidence intervals."}
 
-siml = generate_dataset(effect_sizes=list(type = .3, familiarization = .3, age = .3, "age*type"=.3,
-                                               "age*familiarization"=.3, "type*familiarization"=.3,
-                                               "type*age*familiarization"=.3))
+effect_size_pt3 = list(type = .3, familiarization = .3, age = .3, "age*type"=.3,
+                       "age*familiarization"=.3, "type*familiarization"=.3,
+                       "type*age*familiarization"=.3)
+
+siml = generate_dataset(effect_sizes = effect_size_pt3)
 
 d_sub <- siml %>% mutate(age_group = cut_interval(age_mos, length=3)) %>%
   group_by(subjID, stimulus_type, fam_time, age_group) %>%
   summarise(dv_zscore = mean(dv_zscore)) 
-
-pos = position_dodge(width=.2)
-# age group faceting
-# dag <- siml %>% mutate(age_group = cut_interval(age_mos, length=3)) %>%
-#   group_by(subjID, stimulus_type, fam_time, age_group) %>%
-#   summarise(dv_zscore = mean(dv_zscore)) %>% 
-#   group_by(stimulus_type, fam_time, age_group) %>%
-#   tidyboot::tidyboot_mean(dv_zscore) # quite slow..
-# 
-# ggplot(dag, aes(x=fam_time, y=mean, group=stimulus_type, color=stimulus_type)) + 
-#   facet_wrap(. ~ age_group) + 
-#   ylab("Standardized proportion novel looking") + xlab("Familiarization Time") + 
-#   geom_linerange(aes(ymin=ci_lower, ymax=ci_upper), pos=pos) + 
-#   geom_point(data=d_sub, aes(x=jitter(fam_time), y=dv_zscore), alpha=.2) + 
-#   theme_bw() + geom_smooth(method="lm")
 
 dag <- siml %>% 
   group_by(subjID, stimulus_type, fam_time, age_mos) %>%
@@ -179,11 +171,29 @@ dag <- siml %>%
 
 ggplot(dag, aes(x=age_mos, y=mean, group=stimulus_type, color=stimulus_type)) + 
   facet_wrap(. ~ fam_time) + 
-  geom_point(aes(y=mean, x=age_mos), pos=pos) + 
+  geom_point(aes(y=mean, x=age_mos), alpha=.1) + 
   ylab("Standardized proportion novel looking") + xlab("Age (months)") + 
-  geom_linerange(aes(ymin=ci_lower, ymax=ci_upper), pos=pos) + 
+  geom_linerange(aes(ymin=ci_lower, ymax=ci_upper)) + 
   theme_bw() + geom_smooth(method="lm")
 ```
+
+```{r, include=F, echo=F}
+pos = position_dodge(width=.2)
+#age group faceting
+dag <- siml %>% mutate(age_group = cut_interval(age_mos, length=3)) %>%
+  group_by(subjID, stimulus_type, fam_time, age_group) %>%
+  summarise(dv_zscore = mean(dv_zscore)) %>%
+  group_by(stimulus_type, fam_time, age_group) %>%
+  tidyboot::tidyboot_mean(dv_zscore) # quite slow..
+
+ggplot(dag, aes(x=fam_time, y=mean, group=stimulus_type, color=stimulus_type)) +
+  facet_wrap(. ~ age_group) +
+  ylab("Standardized proportion novel looking") + xlab("Familiarization Time") +
+  geom_linerange(aes(ymin=ci_lower, ymax=ci_upper), pos=pos) +
+  geom_point(data=d_sub, aes(x=jitter(fam_time), y=dv_zscore), alpha=.2) +
+  theme_bw() + geom_smooth(method="lm")
+```
+
 
 
 ## Model Structure
@@ -194,24 +204,23 @@ Infants' proportion of looking at novel object (DV) ~ 1 + familiarization time (
 ```{r model}
 # power for either just main effects, or just the 3-way 
 main_efs <- c("stimulus_type1","age_mos","fam_time")
-                  #"stimulus_type1:fam_time", "stimulus_type1:age_mos", "fam_time:age_mos",
-                  #"stimulus_type1:fam_time:age_mos")
+              #"stimulus_type1:fam_time", "stimulus_type1:age_mos", "fam_time:age_mos",
+              #"stimulus_type1:fam_time:age_mos")
 
 # power for just the 3-way
 fit_simple_model <- function(siml) {
-  m1 <- lmer(dv_zscore ~ 1 + stimulus_type * fam_time * age_mos + (1 | subjID) + (1 | labID), data=siml)
-  return(summary(m1)$coefficients[c(main_efs,"stimulus_type1:fam_time:age_mos"),"Pr(>|t|)"]) # "Estimate","t value",
+  m1 <- lmer(dv_zscore ~ 1 + stimulus_type * fam_time * age_mos + (1 | subjID) + (1 | labID), 
+             data=siml)
+  return(summary(m1)$coefficients[c(main_efs,"stimulus_type1:fam_time:age_mos"),"Pr(>|t|)"]) 
 } 
 
-fit_simple_model(siml)
+#fit_simple_model(siml)
 
-# check both
 fit_model <- function(siml) {
   m1 <- lmer(dv_zscore ~ 1 + stimulus_type * fam_time * age_mos + 
-               (fam_time*stimulus_type | subjID) + (fam_time*stimulus_type | labID), data=siml)
-  sig =c(#summary(m1)$coefficients["stimulus_type1","Pr(>|t|)"],
-       summary(m1)$coefficients[c(main_efs,"stimulus_type1:fam_time:age_mos"),"Pr(>|t|)"])
-  return(sig) # "Estimate","t value",
+             (fam_time*stimulus_type | subjID) + (fam_time*stimulus_type | labID), data=siml)
+  sig = summary(m1)$coefficients[c(main_efs,"stimulus_type1:fam_time:age_mos"),"Pr(>|t|)"]
+  return(sig)
 }
 
 #fit_model(siml) # boundary (singular) fit -- and is quite slow
@@ -226,37 +235,26 @@ To do the power analysis, we simply generate 1000 datasets with main effect size
 
 ```{r, power-analysis, message=F, warning=F}
 # repeatedly generate data and  significance of trial_typesame
-get_power <- function(effect_sizes, N=100, alpha=.05, verbose=F) {
-  #p = data.frame(type=numeric(), "stimulus_type*age_mos*fam_time"=numeric())
+get_power <- function(effect_sizes, N=100, alpha=.05) {
   p = tibble()
   # parallelize
-  #colnames(p) = c("stimulus_type","age_mos","fam_time","stimulus_type*age_mos*fam_time")
   for(i in 1:N) {
     p <- p %>% bind_rows(fit_simple_model(generate_dataset(effect_sizes=effect_sizes)))
-  }
-  if(verbose) {
-    #print(paste(length(which(p$type<alpha)), "of",N, "simulations had p <",alpha, "for trial type"))
-    print(paste(length(which(p<alpha)), "of",N, "simulations had p <",alpha, "for stimulus_type*age_mos*fam_time"))
   }
   return(p)
 }
 
-N = 100
+N = 1000
 
 effect_size_pt1 = list(type = .1, familiarization = .1, age = .1, "age*type"=.1,
-                                               "age*familiarization"=.1, "type*familiarization"=.1,
-                                               "type*age*familiarization"=.1)
+                       "age*familiarization"=.1, "type*familiarization"=.1,
+                       "type*age*familiarization"=.1)
 effect_size_pt2 = list(type = .2, familiarization = .2, age = .2, "age*type"=.2,
-                                               "age*familiarization"=.2, "type*familiarization"=.2,
-                                               "type*age*familiarization"=.2)
-effect_size_pt3 = list(type = .3, familiarization = .3, age = .3, "age*type"=.3,
-                                               "age*familiarization"=.3, "type*familiarization"=.3,
-                                               "type*age*familiarization"=.3)
+                       "age*familiarization"=.2, "type*familiarization"=.2,
+                       "type*age*familiarization"=.2)
 
 pvalues_pt1 = get_power(effect_sizes=effect_size_pt1, N=N)
-
 pvalues_pt2 = get_power(effect_sizes=effect_size_pt2, N=N)
-
 pvalues_pt3 = get_power(effect_sizes=effect_size_pt3, N=N)
 ```
 
@@ -265,18 +263,23 @@ pvalues_pt3 = get_power(effect_sizes=effect_size_pt3, N=N)
 `r paste(length(which(pvalues_pt1$age_mos<.05)), "of",N, "simulations had p <",.05, "for age.")`
 `r paste(length(which(pvalues_pt1$fam_time<.05)), "of",N, "simulations had p <",.05, "for familiarization time.")`
 `r paste(length(which(pvalues_pt1[,"stimulus_type1:fam_time:age_mos"]<.05)), "of",N, "simulations had p <",.05, "for age * stimulus type * familiarization time.")`
+<!-- 147 of 1000 simulations had p < 0.05 for stimulus type.  775 of 1000 simulations had p < 0.05 for age. 1000 of 1000 simulations had p < 0.05 for familiarization time. 52 of 1000 simulations had p < 0.05 for age * stimulus type * familiarization time. -->
+
 
 ### Effect sizes = .2
 `r paste(length(which(pvalues_pt2$stimulus_type1<.05)), "of",N, "simulations had p <",.05, "for stimulus type.")`
 `r paste(length(which(pvalues_pt2$age_mos<.05)), "of",N, "simulations had p <",.05, "for age.")`
 `r paste(length(which(pvalues_pt2$fam_time<.05)), "of",N, "simulations had p <",.05, "for familiarization time.")`
 `r paste(length(which(pvalues_pt2[,"stimulus_type1:fam_time:age_mos"]<.05)), "of",N, "simulations had p <",.05, "for age * stimulus type * familiarization time.")`
+<!-- 431 of 1000 simulations had p < 0.05 for stimulus type. 1000 of 1000 simulations had p < 0.05 for age. 1000of 1000 simulations had p < 0.05 for familiarization time. 68 of 1000 simulations had p < 0.05 for age *stimulus type * familiarization time. -->
+
 
 ### Effect sizes = .3
 `r paste(length(which(pvalues_pt3$stimulus_type1<.05)), "of",N, "simulations had p <",.05, "for stimulus type.")`
 `r paste(length(which(pvalues_pt3$age_mos<.05)), "of",N, "simulations had p <",.05, "for age.")`
 `r paste(length(which(pvalues_pt3$fam_time<.05)), "of",N, "simulations had p <",.05, "for familiarization time.")`
 `r paste(length(which(pvalues_pt3[,"stimulus_type1:fam_time:age_mos"]<.05)), "of",N, "simulations had p <",.05, "for age * stimulus type * familiarization time.")`
+<!-- 667 of 1000 simulations had p < 0.05 for stimulus type. 1000 of 1000 simulations had p < 0.05 for age. 1000 of 1000 simulations had p < 0.05 for familiarization time. 720 of 1000 simulations had p < 0.05 for age *stimulus type * familiarization time. -->
 
 For context, .3 is the average effect size across all published developmental experiments.
 (Any idea of the average empirical effect size (of age, complexity, or familiarization time) for habituation experiments??)
