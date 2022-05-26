@@ -70,6 +70,7 @@ generate_dataset <- function(n_labs=30, n_per_lab=32,
 
   familiarization_times = c(5,10,15) # or maybe we expect linear effect on log(fam_time)?
   fam_times_sc = c(-1,0,1) # scaled
+  fam_times_sc = log(familiarization_times)
   stimulus_types = c(rep("high",4), rep("low",4)) # stimulus complexity
   # trials each subject gets (but randomly ordered)
   fam_by_stim = expand.grid(fam_time = fam_times_sc, stimulus_type = stimulus_types)
@@ -169,9 +170,12 @@ dag <- siml %>%
   summarise(dv_zscore = mean(dv_zscore)) %>% 
   group_by(stimulus_type, fam_time, age_mos) %>%
   tidyboot::tidyboot_mean(dv_zscore) %>%
-  mutate(fam_time = case_when(fam_time==-1 ~ 5, # unscale
-                              fam_time==0 ~ 10,
-                              fam_time==1 ~ 15))
+  mutate(fam_time = case_when(fam_time==log(5) ~ 5, # unscale
+                              fam_time==log(10) ~ 10,
+                              fam_time==log(15) ~ 15))
+  #mutate(fam_time = case_when(fam_time==-1 ~ 5, # unscale
+  #                            fam_time==0 ~ 10,
+  #                            fam_time==1 ~ 15))
 
 ggplot(dag, aes(x=age_mos, y=mean, group=stimulus_type, color=stimulus_type)) + 
   facet_wrap(. ~ fam_time) + 
@@ -207,15 +211,15 @@ Infants' proportion of looking at novel object (DV) ~ 1 + familiarization time (
 
 ```{r model}
 # power for either just main effects, or just the 3-way 
-main_efs <- c("stimulus_type1","age_mos","fam_time")
-              #"stimulus_type1:fam_time", "stimulus_type1:age_mos", "fam_time:age_mos",
-              #"stimulus_type1:fam_time:age_mos")
+effects <- c("stimulus_type1","age_mos","fam_time",
+              "stimulus_type1:fam_time", "stimulus_type1:age_mos", "fam_time:age_mos",
+              "stimulus_type1:fam_time:age_mos")
 
 # power for just the 3-way
 fit_simple_model <- function(siml) {
   m1 <- lmer(dv_zscore ~ 1 + stimulus_type * fam_time * age_mos + (1 | subjID) + (1 | labID), 
              data=siml)
-  return(summary(m1)$coefficients[c(main_efs,"stimulus_type1:fam_time:age_mos"),"Pr(>|t|)"]) 
+  return(summary(m1)$coefficients[effects,"Pr(>|t|)"]) 
 } 
 
 #fit_simple_model(siml)
@@ -223,7 +227,7 @@ fit_simple_model <- function(siml) {
 fit_model <- function(siml) {
   m1 <- lmer(dv_zscore ~ 1 + stimulus_type * fam_time * age_mos + 
              (fam_time*stimulus_type | subjID) + (fam_time*stimulus_type | labID), data=siml)
-  sig = summary(m1)$coefficients[c(main_efs,"stimulus_type1:fam_time:age_mos"),"Pr(>|t|)"]
+  sig = summary(m1)$coefficients[effects,"Pr(>|t|)"]
   return(sig)
 }
 
@@ -260,29 +264,37 @@ effect_size_pt2 = list(type = .2, familiarization = .2, age = .2, "age*type"=.2,
 pvalues_pt1 = get_power(effect_sizes=effect_size_pt1, N=N)
 pvalues_pt2 = get_power(effect_sizes=effect_size_pt2, N=N)
 pvalues_pt3 = get_power(effect_sizes=effect_size_pt3, N=N)
+
+report_main_effects <- function(pvalues) {
+  paste(length(which(pvalues$stimulus_type1<.05)), "of",N, "simulations had p <",.05, "for stimulus type.",
+        length(which(pvalues$age_mos<.05)), "of",N, "simulations had p <",.05, "for age.",
+        length(which(pvalues$fam_time<.05)), "of",N, "simulations had p <",.05, "for familiarization time.")
+}
+
+report_interactions <- function(pvalues) {
+  paste(length(which(pvalues[,"stimulus_type1:fam_time"]<.05)), "of",N, "simulations had p <",.05, "for stimulus type * familiarization time.",
+        length(which(pvalues[,"stimulus_type1:age_mos"]<.05)), "of",N, "simulations had p <",.05, "stimulus type * age.",
+        length(which(pvalues[,"fam_time:age_mos"]<.05)), "of",N, "simulations had p <",.05, "for familiarization time * age.",
+        length(which(pvalues[,"stimulus_type1:fam_time:age_mos"]<.05)), "of",N, "simulations had p <",.05, "for age * stimulus type * familiarization time.")
+}
 ```
 
 ### Effect sizes = .1
-`r paste(length(which(pvalues_pt1$stimulus_type1<.05)), "of",N, "simulations had p <",.05, "for stimulus type.")`
-`r paste(length(which(pvalues_pt1$age_mos<.05)), "of",N, "simulations had p <",.05, "for age.")`
-`r paste(length(which(pvalues_pt1$fam_time<.05)), "of",N, "simulations had p <",.05, "for familiarization time.")`
-`r paste(length(which(pvalues_pt1[,"stimulus_type1:fam_time:age_mos"]<.05)), "of",N, "simulations had p <",.05, "for age * stimulus type * familiarization time.")`
+`r report_main_effects(pvalues_pt1)`
+`r report_interactions(pvalues_pt1)`
+
 <!-- 760 of 1000 simulations had p < 0.05 for stimulus type.  850 of 1000 simulations had p < 0.05 for age. 987 of 1000 simulations had p < 0.05 for familiarization time. 47 of 1000 simulations had p < 0.05 for age * stimulus type * familiarization time. -->
 
 
 ### Effect sizes = .2
-`r paste(length(which(pvalues_pt2$stimulus_type1<.05)), "of",N, "simulations had p <",.05, "for stimulus type.")`
-`r paste(length(which(pvalues_pt2$age_mos<.05)), "of",N, "simulations had p <",.05, "for age.")`
-`r paste(length(which(pvalues_pt2$fam_time<.05)), "of",N, "simulations had p <",.05, "for familiarization time.")`
-`r paste(length(which(pvalues_pt2[,"stimulus_type1:fam_time:age_mos"]<.05)), "of",N, "simulations had p <",.05, "for age * stimulus type * familiarization time.")`
+`r report_main_effects(pvalues_pt2)`
+`r report_interactions(pvalues_pt2)`
 <!-- 998 of 1000 simulations had p < 0.05 for stimulus type. 1000 of 1000 simulations had p < 0.05 for age. 1000of 1000 simulations had p < 0.05 for familiarization time. 45 of 1000 simulations had p < 0.05 for age *stimulus type * familiarization time. -->
 
 
 ### Effect sizes = .3
-`r paste(length(which(pvalues_pt3$stimulus_type1<.05)), "of",N, "simulations had p <",.05, "for stimulus type.")`
-`r paste(length(which(pvalues_pt3$age_mos<.05)), "of",N, "simulations had p <",.05, "for age.")`
-`r paste(length(which(pvalues_pt3$fam_time<.05)), "of",N, "simulations had p <",.05, "for familiarization time.")`
-`r paste(length(which(pvalues_pt3[,"stimulus_type1:fam_time:age_mos"]<.05)), "of",N, "simulations had p <",.05, "for age * stimulus type * familiarization time.")`
+`r report_main_effects(pvalues_pt3)`
+`r report_interactions(pvalues_pt3)`
 <!-- 1000 of 1000 simulations had p < 0.05 for stimulus type. 1000 of 1000 simulations had p < 0.05 for age. 1000 of 1000 simulations had p < 0.05 for familiarization time. 81 of 1000 simulations had p < 0.05 for age *stimulus type * familiarization time. -->
 
 For context, .3 is the average effect size across all published developmental experiments.
