@@ -102,9 +102,7 @@ generate_dataset <- function(n_labs=40, n_per_lab=32,
   for(i in 1:nrow(simd)) {
     # randomized trial order (but maybe should be done according to preset pseudorandom orders?)
     tmp_sdat <- fam_by_stim[sample(1:nrow(fam_by_stim), size=nrow(fam_by_stim), replace=F),]
-    # need novel and familiar looking times, to calculate prop_novel -- 
-    # UNLESS prop_novel turns out to be normally-distributed 
-    # (which would be easier to generate, requiring fewer assumptions) - check empirical trial-level data
+    # let's assume prop_novel is normally-distributed
     stimulus_type = with(tmp_sdat, ifelse(stimulus_type=="high", .5, -.5)) 
     error_term = rnorm(nrow(tmp_sdat), 0, sd=1) + simd[i,]$labInt + simd[i,]$subjInt # add random slopes? (e.g. by age..)
     # rescale error to be >0
@@ -121,7 +119,13 @@ generate_dataset <- function(n_labs=40, n_per_lab=32,
       effect_sizes$`type*familiarization` * tmp_sdat$fam_time * stimulus_type * effect_sizes$type + 
       effect_sizes$`type*age*familiarization` * stimulus_type * effect_sizes$type * age_effect_subj * tmp_sdat$fam_time * effect_sizes$familiarization + 
       error_term
-    # standardize from normal means to beta mean: .5+/-.3 ??
+    
+    # since DV has SD~.2, and must be in the range [0,1], let's make floor=-2.5 and ceiling=2.5
+    min_ind = which(tmp_sdat$dv_zscore< -2.5)
+    max_ind = which(tmp_sdat$dv_zscore > 2.5)
+    if(length(min_ind)>0) tmp_sdat[min_ind,]$dv_zscore = -2.5
+    if(length(max_ind)>0) tmp_sdat[max_ind,]$dv_zscore = 2.5
+    
     siml <- siml %>% 
       bind_rows(tmp_sdat %>% mutate(subjID = simd[i,]$subjID,
                                     labID = simd[i,]$labID,
