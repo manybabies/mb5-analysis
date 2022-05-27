@@ -15,7 +15,7 @@ library(lmerTest)
 ## Design
 
 
-For this power analysis we will simulate 30 labs contributing 32 infants (960 participants) from 3 to 15 months of age. (This is conservative, as MB5 estimates there will be at least 1200 participants in the final sample.)
+For this power analysis we will simulate 40 labs contributing 32 infants (1280 participants) from 3 to 15 months of age. (MB5 estimates there will be a minimum of 1200 participants in the final sample.)
 
 Notes: MB1 overall effect size was 0.29 for the single-screen central fixation (CF) method, with additional effect of 0.21 for HPP, and eye-tracking (ET) yielding a slight (non-significant) decrease in effect of -0.06.
 We expect to have X labs running infant-controlled familiarization duration, and the other 20-X labs running a fixed familiarization procedure.
@@ -24,15 +24,15 @@ Factors:
 
 * *stimulus_type*: indicates the type (complexity/difficulty) of the stimuli that infants are familiarized with during training (high/low stimulus type; within-infant, 12 per type)
 
-* *familiarization_time*: indicates how long each stimulus is exposed during familiarization (5, 10, or 15 seconds; within-infant) 
+* *familiarization_time*: indicates how long each stimulus is exposed during familiarization (5, 10, or 15 seconds; within-infant; scaled to [-1,1]) 
 
 * *trial_num*: indicates the sequential order in which test trials were presented. Trial number thus ranges from 1 to 24. 
 
-* *age_mos*: the infants' age in months (3.0-15.0), centered in *age* column.
+* *age_mos*: the infants' age in months (3.0-15.0), scaled and centered in *age* column.
 
 * *procedure*: indicates the experimental method that was used to record infants’ looking to the stimuli: infant-controlled exposure (IC; total familiarization time is achieved over uncontrolled period of time) vs. fixed-duration exposure (FD; controlled period of exposure, unknown period of infant fixation)
 
-* *test_order*: indicates which of the four pseudorandom test orders (from our provided scripts) were used to present test trials to the infant. true for MB5??? 
+<!--* *test_order*: indicates which of the four pseudorandom test orders (from our provided scripts) were used to present test trials to the infant. -->
 
 To do our power analysis, we will generate 1,000 datasets of this structure with a given effect size (e.g., .3), run the mixed-effects regression for each simulated dataset, and count the number of times that the effect is significant. 
 Note that we generate normally-distributed looking times, assuming that they have already been log-transformed.
@@ -57,7 +57,7 @@ get.ab <- function(mu, var){
 ```{r simulate-data}
 set.seed(123) # reproducible sampling
 
-generate_dataset <- function(n_labs=30, n_per_lab=32, 
+generate_dataset <- function(n_labs=40, n_per_lab=32, 
                              effect_sizes=list(type = .3, familiarization = .1, 
                                                age = .1, "age*type"=.1,
                                                "age*familiarization"=0, "type*familiarization"=0,
@@ -70,7 +70,7 @@ generate_dataset <- function(n_labs=30, n_per_lab=32,
 
   familiarization_times = c(5,10,15) # or maybe we expect linear effect on log(fam_time)?
   fam_times_sc = c(-1,0,1) # scaled
-  fam_times_sc = log(familiarization_times)
+  #fam_times_sc = log(familiarization_times) # tried this: yields much lower power for main effects, only slight benefit for interactions
   stimulus_types = c(rep("high",4), rep("low",4)) # stimulus complexity
   # trials each subject gets (but randomly ordered)
   fam_by_stim = expand.grid(fam_time = fam_times_sc, stimulus_type = stimulus_types)
@@ -170,12 +170,12 @@ dag <- siml %>%
   summarise(dv_zscore = mean(dv_zscore)) %>% 
   group_by(stimulus_type, fam_time, age_mos) %>%
   tidyboot::tidyboot_mean(dv_zscore) %>%
-  mutate(fam_time = case_when(fam_time==log(5) ~ 5, # unscale
-                              fam_time==log(10) ~ 10,
-                              fam_time==log(15) ~ 15))
-  #mutate(fam_time = case_when(fam_time==-1 ~ 5, # unscale
-  #                            fam_time==0 ~ 10,
-  #                            fam_time==1 ~ 15))
+  #mutate(fam_time = case_when(fam_time==log(5) ~ 5, # unscale
+  #                            fam_time==log(10) ~ 10,
+  #                            fam_time==log(15) ~ 15))
+  mutate(fam_time = case_when(fam_time==-1 ~ 5, # unscale
+                              fam_time==0 ~ 10,
+                              fam_time==1 ~ 15))
 
 ggplot(dag, aes(x=age_mos, y=mean, group=stimulus_type, color=stimulus_type)) + 
   facet_wrap(. ~ fam_time) + 
@@ -289,7 +289,7 @@ report_interactions <- function(pvalues) {
 ### Effect sizes = .2
 `r report_main_effects(pvalues_pt2)`
 `r report_interactions(pvalues_pt2)`
-<!-- 998 of 1000 simulations had p < 0.05 for stimulus type. 1000 of 1000 simulations had p < 0.05 for age. 1000of 1000 simulations had p < 0.05 for familiarization time. 45 of 1000 simulations had p < 0.05 for age *stimulus type * familiarization time. -->
+<!-- 998 of 1000 simulations had p < 0.05 for stimulus type. 1000 of 1000 simulations had p < 0.05 for age. 1000 of 1000 simulations had p < 0.05 for familiarization time. 45 of 1000 simulations had p < 0.05 for age *stimulus type * familiarization time. -->
 
 
 ### Effect sizes = .3
