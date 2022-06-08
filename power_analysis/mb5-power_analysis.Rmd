@@ -10,6 +10,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 require(tidyverse)
 library(lmerTest)
+library(here)
 ```
 
 ## Design
@@ -164,6 +165,8 @@ effect_size_pt3 = list(type = .3, familiarization = .3, age = .3, "age*type"=.3,
                        "type*age*familiarization"=.3)
 
 siml = generate_dataset(effect_sizes = effect_size_pt3)
+#save generated dataset
+write.csv(siml, here::here("power_analysis","simulated_data","example_power_analysis_data_0.3.csv"), row.names=FALSE)
 
 d_sub <- siml %>% mutate(age_group = cut_interval(age_mos, length=3)) %>%
   group_by(subjID, stimulus_type, fam_time, age_group) %>%

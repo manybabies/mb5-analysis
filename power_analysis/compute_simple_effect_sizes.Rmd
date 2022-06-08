@@ -1,0 +1,139 @@
+---
+title: "Compute Simple Effect Sizes"
+author: "Martin Zettersten"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(here)
+library(effectsize)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+## Read Data
+
+Simple computation of effect sizes from example power analysis datasets
+
+```{r}
+dataset_1 <- read_csv(here::here("power_analysis","simulated_data","example_power_analysis_data_0.3.csv"))
+```
+
+## Plot Main Effects
+
+### Familiarization
+
+```{r}
+#summarize by subject
+d_sub_fam <- dataset_1 %>%
+  group_by(subjID,fam_time) %>%
+  summarize(
+    mean_looking = mean(dv_zscore,na.rm=TRUE)
+  )
+ggplot(d_sub_fam,aes(as.factor(fam_time),mean_looking))+
+  geom_violin()+
+  geom_boxplot()+
+  geom_jitter(alpha=0.1)
+```
+
+### Stimulus Type
+
+```{r}
+#summarize by subject
+d_sub_stim_type <- dataset_1 %>%
+  group_by(subjID,stimulus_type) %>%
+  summarize(
+    mean_looking = mean(dv_zscore,na.rm=TRUE)
+  )
+ggplot(d_sub_stim_type,aes(as.factor(stimulus_type),mean_looking))+
+  geom_violin()+
+  geom_boxplot()+
+  geom_jitter(alpha=0.1)
+```
+
+### Age
+
+```{r}
+#summarize by subject
+d_sub_age <- dataset_1 %>%
+  group_by(subjID,age) %>%
+  summarize(
+    mean_looking = mean(dv_zscore,na.rm=TRUE)
+  )
+ggplot(d_sub_age,aes(age,mean_looking))+
+  geom_jitter(alpha=0.1)+
+  geom_smooth(method="lm")
+```
+
+## Effect sizes
+
+### All together
+
+```{r}
+m <- lmer(dv_zscore ~ fam_time*stimulus_type*age+(1|subjID)+(1|labID), data = dataset_1)
+anova(m)
+#fam_time effect size
+F_to_d(anova(m)[1,5],anova(m)[1,3],anova(m)[1,4])
+#stimulus type effect size
+F_to_d(anova(m)[2,5],anova(m)[2,3],anova(m)[2,4])
+#age effect size
+F_to_d(anova(m)[3,5],anova(m)[3,3],anova(m)[3,4])
+```
+
+### Familiarization Alone
+
+### Familiarization Time
+
+LMER
+
+```{r}
+m <- lmer(dv_zscore ~ fam_time+(1|subjID)+(1|labID), data = dataset_1)
+anova(m)
+F_to_d(anova(m)[1,5],anova(m)[1,3],anova(m)[1,4])
+#model comparison
+# marginal R squared
+r.squaredGLMM(m)[1]
+```
+
+### Stimulus Type Alone
+
+Subject-level averages
+
+```{r}
+d_sub_stim_type_paired <- d_sub_stim_type %>%
+  pivot_wider(names_from = "stimulus_type",values_from = "mean_looking") %>%
+  mutate(
+    diff = high - low
+  )
+
+#cohens_d(diff ~ 1, data=d_sub_stim_type_paired)
+#Cohen's d
+mean(d_sub_stim_type_paired$diff)/sd(d_sub_stim_type_paired$diff)
+
+```
+
+LMER
+
+```{r}
+m <- lmer(dv_zscore ~ stimulus_type+(1|subjID)+(1|labID), data = dataset_1)
+anova(m)
+F_to_d(anova(m)[1,5],anova(m)[1,3],anova(m)[1,4])
+# marginal R squared
+r.squaredGLMM(m)[1]
+```
+
+### Age
+
+LMER
+
+```{r}
+m <- lmer(dv_zscore ~ age+(1|subjID)+(1|labID), data = dataset_1)
+anova(m)
+F_to_d(anova(m)[1,5],anova(m)[1,3],anova(m)[1,4])
+#marginal R squared
+r.squaredGLMM(m)[1]
+```
+
