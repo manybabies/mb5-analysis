@@ -4,6 +4,8 @@ date: "`r Sys.Date()`"
 output:
   pdf_document: default
   html_document: default
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -25,7 +27,7 @@ Factors:
 
 * *stimulus_type*: indicates the type (complexity/difficulty) of the stimuli that infants are familiarized with during training (high/low stimulus type; within-infant, 12 per type)
 
-* *familiarization_time*: indicates how long each stimulus is exposed during familiarization (5, 10, or 15 seconds; within-infant; scaled to [-1,1]) 
+* *familiarization_time*: indicates how long each stimulus is exposed during familiarization (5, 10, or 15 seconds; within-infant; scaled to [-.5,.5])
 
 * *trial_num*: indicates the sequential order in which test trials were presented. Trial number thus ranges from 1 to 24. 
 
@@ -54,12 +56,12 @@ get.ab <- function(mu, var){
 
 ```
 
-
 ```{r simulate-data}
 set.seed(123) # reproducible sampling
 
 generate_dataset <- function(n_labs=40, n_per_lab=32, 
-                             effect_sizes=list(type = .3, familiarization = .1, 
+                             effect_sizes=list(type = .3, 
+                                               familiarization = .1,
                                                age = .1, "age*type"=.1,
                                                "age*familiarization"=0, "type*familiarization"=0,
                                                "type*age*familiarization"=.1)) { 
@@ -69,8 +71,8 @@ generate_dataset <- function(n_labs=40, n_per_lab=32,
   labID = rep(as.character(1:n_labs), each=n_per_lab)
   subjID = 1:(n_labs*n_per_lab)
 
-  familiarization_times = c(5,10,15) # or maybe we expect linear effect on log(fam_time)?
-  fam_times_sc = c(-1,0,1) # scaled
+  familiarization_times = c(-0.5,0,0.5) # or maybe we expect linear effect on log(fam_time)?
+  fam_times_sc = c(-0.5,0,0.5) # scaled
   #fam_times_sc = log(familiarization_times) # tried this: yields much lower power for main effects, only slight benefit for interactions
   stimulus_types = c(rep("high",4), rep("low",4)) # stimulus complexity
   # trials each subject gets (but randomly ordered)
@@ -121,11 +123,11 @@ generate_dataset <- function(n_labs=40, n_per_lab=32,
       effect_sizes$`type*age*familiarization` * stimulus_type * effect_sizes$type * age_effect_subj * tmp_sdat$fam_time * effect_sizes$familiarization + 
       error_term
     
-    # since DV has SD~.2, and must be in the range [0,1], let's make floor=-2.5 and ceiling=2.5
-    min_ind = which(tmp_sdat$dv_zscore< -2.5)
-    max_ind = which(tmp_sdat$dv_zscore > 2.5)
-    if(length(min_ind)>0) tmp_sdat[min_ind,]$dv_zscore = -2.5
-    if(length(max_ind)>0) tmp_sdat[max_ind,]$dv_zscore = 2.5
+    # since DV has SD~.2, and must be in the range [0,1], let's make floor=-2.5 and ceiling=2.5. # the next four lines generate a     # strange distribution: 
+    #min_ind = which(tmp_sdat$dv_zscore< -2.5)
+    #max_ind = which(tmp_sdat$dv_zscore > 2.5)
+    #if(length(min_ind)>0) tmp_sdat[min_ind,]$dv_zscore = -2.5
+    #if(length(max_ind)>0) tmp_sdat[max_ind,]$dv_zscore = 2.5
     
     siml <- siml %>% 
       bind_rows(tmp_sdat %>% mutate(subjID = simd[i,]$subjID,
@@ -148,7 +150,8 @@ generate_dataset <- function(n_labs=40, n_per_lab=32,
   siml$subjID = as.factor(siml$subjID)
   # switch from dummy-code to effects code 
   siml$stimulus_type = as.factor(siml$stimulus_type)
-  contrasts(siml$stimulus_type) = contr.sum(2)
+  contrasts(siml$stimulus_type) = c(0.5, -0.5)
+  
   return(siml)
 }
 
@@ -159,18 +162,29 @@ generate_dataset <- function(n_labs=40, n_per_lab=32,
 We generate and plot an example dataset with all effect sizes = .3 (main, 2-way, and 3-way).
 
 ```{r, fig.width=6, fig.height=4.5, echo=F, caption="z-scored proportion of novel looking by stimulus type by age, faceted by familiarization time. All simulated main and interaction effects are of size d=.3. Shaded regions denote bootstrapped 95% confidence intervals."}
-
 effect_size_pt3 = list(type = .3, familiarization = .3, age = .3, "age*type"=.3,
                        "age*familiarization"=.3, "type*familiarization"=.3,
                        "type*age*familiarization"=.3)
 
 siml = generate_dataset(effect_sizes = effect_size_pt3)
-#save generated dataset
-write.csv(siml, here::here("power_analysis","simulated_data","example_power_analysis_data_0.3.csv"), row.names=FALSE)
 
+#plot things as a sanity check:
+siml %>%
+  ggplot(aes(stimulus_type, dv_zscore)) +
+  geom_violin(aes(group = stimulus_type)) +
+  geom_point(position = "jitter", size = 0.1, alpha = 0.2) +
+  theme_bw()
+
+  #save generated dataset
+write.csv(siml, here::here("power_analysis","simulated_data","example_power_analysis_data_0.3.csv"), row.names=FALSE)
+```
+
+
+```{r, include=F, echo=F}
 d_sub <- siml %>% mutate(age_group = cut_interval(age_mos, length=3)) %>%
   group_by(subjID, stimulus_type, fam_time, age_group) %>%
   summarise(dv_zscore = mean(dv_zscore)) 
+
 
 dag <- siml %>% 
   group_by(subjID, stimulus_type, fam_time, age_mos) %>%
@@ -210,10 +224,9 @@ ggplot(dag, aes(x=fam_time, y=mean, group=stimulus_type, color=stimulus_type)) +
 ```
 
 
-
 ## Model Structure
 
-Infants' proportion of looking at novel object (DV) ~ 1 + familiarization time (5, 10, 15) * stimulus type (high/low complexity) * age + (fam_time\*stim_type | subject) + (fam_time\*stim_type*age | lab) 
+Infants' proportion of looking at novel object (DV) ~ 1 + familiarization time (-0.5, 0, .5) * stimulus type (high/low complexity) * age + (fam_time\*stim_type | subject) + (fam_time\*stim_type*age | lab) 
 <!-- https://docs.google.com/document/d/1vwPOBSnVtrmOb-brNlQq3DcAEcXCG1p1gFfywhuwXK8/edit -->
 
 ```{r model}
@@ -224,18 +237,18 @@ effects <- c("stimulus_type1","age_mos","fam_time",
 
 # power for just the 3-way
 fit_simple_model <- function(siml) {
-  m1 <- lmer(dv_zscore ~ 1 + stimulus_type * fam_time * age_mos + (1 | subjID) + (1 | labID), 
-             data=siml)
-  return(summary(m1)$coefficients[effects,"Pr(>|t|)"]) 
-} 
+  m1 <- lmer(dv_zscore ~ 1 + stimulus_type * fam_time * age + (1 | subjID) + (1 | labID), data=siml)
+  #coefs = as.data.frame(coef(summary(m1)))
+  return(coef(summary(m1))[,5])
+  #return(summary(m1)$coefficients[effects,"Pr(>|t|)"])
+}
 
 #fit_simple_model(siml)
-
 fit_model <- function(siml) {
-  m1 <- lmer(dv_zscore ~ 1 + stimulus_type * fam_time * age_mos + 
-             (fam_time*stimulus_type | subjID) + (fam_time*stimulus_type | labID), data=siml)
-  sig = summary(m1)$coefficients[effects,"Pr(>|t|)"]
-  return(sig)
+  m1 <- lmer(dv_zscore ~ 1 + stimulus_type * fam_time * age + (fam_time*stimulus_type | subjID) + (fam_time*stimulus_type | labID), data=siml)
+  return(coef(summary(m1))[,5])
+  #sig = summary(m1)$coefficients[effects,"Pr(>|t|)"]
+  #return(sig)
 }
 
 #fit_model(siml) # boundary (singular) fit -- and is quite slow
@@ -259,7 +272,7 @@ get_power <- function(effect_sizes, N=100, alpha=.05) {
   return(p)
 }
 
-N = 1000
+N = 2
 
 effect_size_pt1 = list(type = .1, familiarization = .1, age = .1, "age*type"=.1,
                        "age*familiarization"=.1, "type*familiarization"=.1,
