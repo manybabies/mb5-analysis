@@ -268,11 +268,12 @@ get_power <- function(effect_sizes, N=100, alpha=.05) {
   # parallelize
   for(i in 1:N) {
     p <- p %>% bind_rows(fit_simple_model(generate_dataset(effect_sizes=effect_sizes)))
+    print(paste0("iteration: ", i, "."))
   }
   return(p)
 }
 
-N = 2
+N = 1000
 
 effect_size_pt1 = list(type = .1, familiarization = .1, age = .1, "age*type"=.1,
                        "age*familiarization"=.1, "type*familiarization"=.1,
@@ -287,35 +288,41 @@ pvalues_pt3 = get_power(effect_sizes=effect_size_pt3, N=N)
 
 report_main_effects <- function(pvalues) {
   paste(length(which(pvalues$stimulus_type1<.05)), "of",N, "simulations had p <",.05, "for stimulus type.",
-        length(which(pvalues$age_mos<.05)), "of",N, "simulations had p <",.05, "for age.",
+        length(which(pvalues$age<.05)), "of",N, "simulations had p <",.05, "for age.",
         length(which(pvalues$fam_time<.05)), "of",N, "simulations had p <",.05, "for familiarization time.")
 }
 
 report_interactions <- function(pvalues) {
-  paste(length(which(pvalues[,"stimulus_type1:fam_time"]<.05)), "of",N, "simulations had p <",.05, "for stimulus type * familiarization time.",
-        length(which(pvalues[,"stimulus_type1:age_mos"]<.05)), "of",N, "simulations had p <",.05, "stimulus type * age.",
-        length(which(pvalues[,"fam_time:age_mos"]<.05)), "of",N, "simulations had p <",.05, "for familiarization time * age.",
-        length(which(pvalues[,"stimulus_type1:fam_time:age_mos"]<.05)), "of",N, "simulations had p <",.05, "for age * stimulus type * familiarization time.")
+  paste(length(which(pvalues[,"stimulus_type1.fam_time"]<.05)), "of",N, "simulations had p <",.05, "for stimulus type * familiarization time.",
+        length(which(pvalues[,"stimulus_type1.age"]<.05)), "of",N, "simulations had p <",.05, "stimulus type * age.",
+        length(which(pvalues[,"fam_time.age"]<.05)), "of",N, "simulations had p <",.05, "for familiarization time * age.",
+        length(which(pvalues[,"stimulus_type1.fam_time.age"]<.05)), "of",N, "simulations had p <",.05, "for age * stimulus type * familiarization time.")
 }
 ```
 
 ### Effect sizes = .1
-`r report_main_effects(pvalues_pt1)`
-`r report_interactions(pvalues_pt1)`
+```{r}
+report_main_effects(pvalues_pt1)
+report_interactions(pvalues_pt1)
+```
 
 <!-- 760 of 1000 simulations had p < 0.05 for stimulus type.  850 of 1000 simulations had p < 0.05 for age. 987 of 1000 simulations had p < 0.05 for familiarization time. 47 of 1000 simulations had p < 0.05 for age * stimulus type * familiarization time. -->
 
 
 ### Effect sizes = .2
-`r report_main_effects(pvalues_pt2)`
-`r report_interactions(pvalues_pt2)`
+```{r}
+report_main_effects(pvalues_pt2)
+report_interactions(pvalues_pt2)
+```
 <!-- 998 of 1000 simulations had p < 0.05 for stimulus type. 1000 of 1000 simulations had p < 0.05 for age. 1000 of 1000 simulations had p < 0.05 for familiarization time. 45 of 1000 simulations had p < 0.05 for age *stimulus type * familiarization time. -->
 
 
 ### Effect sizes = .3
-`r report_main_effects(pvalues_pt3)`
-`r report_interactions(pvalues_pt3)`
+```{r}
+report_main_effects(pvalues_pt3)
+report_interactions(pvalues_pt3)
+```
+
 <!-- 1000 of 1000 simulations had p < 0.05 for stimulus type. 1000 of 1000 simulations had p < 0.05 for age. 1000 of 1000 simulations had p < 0.05 for familiarization time. 81 of 1000 simulations had p < 0.05 for age *stimulus type * familiarization time. -->
 
 For context, .3 is the average effect size across all published developmental experiments.
-(Any idea of the average empirical effect size (of age, complexity, or familiarization time) for habituation experiments??)
