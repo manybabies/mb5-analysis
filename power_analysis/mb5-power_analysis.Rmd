@@ -326,3 +326,34 @@ report_interactions(pvalues_pt3)
 <!-- 1000 of 1000 simulations had p < 0.05 for stimulus type. 1000 of 1000 simulations had p < 0.05 for age. 1000 of 1000 simulations had p < 0.05 for familiarization time. 81 of 1000 simulations had p < 0.05 for age *stimulus type * familiarization time. -->
 
 For context, .3 is the average effect size across all published developmental experiments.
+
+
+
+```{r}
+#initial stab at function to simulate missing data:
+uneven_samples <- siml %>%
+  mutate(fam_time = as.factor(fam_time)) %>%
+  group_by(fam_time) %>%
+  mutate(nas = rbinom(n(), 1, 0.95 - ifelse(fam_time != 0, 0.20, 0))) %>%
+  mutate(dv_zscore = ifelse(nas == 1, dv_zscore, NA))
+
+uneven_samples %>%
+  filter(nas == 1) %>%
+  group_by(fam_time) %>%
+  dplyr::summarise(n()) %>%
+  print(n=50)
+
+uneven_samples %>%
+  ggplot(aes(x = as.factor(fam_time), y = dv_zscore, group = fam_time)) +
+  geom_boxplot() +
+  geom_point(position = position_jitter(), color = "steelblue", alpha = 0.5, size = 0.2) +
+  theme_bw()
+
+uneven_samples %>%
+  filter(nas == 1) %>%
+  group_by(fam_time) %>%
+  dplyr::summarise(n = n(), 
+                   "mean_fam" = mean(dv_zscore),
+                   "sd_fam" = sd(dv_zscore))
+```
+
