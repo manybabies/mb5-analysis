@@ -170,8 +170,8 @@ siml = generate_dataset(effect_sizes = effect_size_pt3)
 
 #plot things as a sanity check:
 siml %>%
-  ggplot(aes(stimulus_type, dv_zscore)) +
-  geom_violin(aes(group = stimulus_type)) +
+  ggplot(aes(age, dv_zscore)) +
+  #geom_violin(aes(group = stimulus_type)) +
   geom_point(position = "jitter", size = 0.1, alpha = 0.2) +
   theme_bw()
 
@@ -285,6 +285,11 @@ effect_size_pt2 = list(type = .2, familiarization = .2, age = .2, "age*type"=.2,
 pvalues_pt1 = get_power(effect_sizes=effect_size_pt1, N=N)
 pvalues_pt2 = get_power(effect_sizes=effect_size_pt2, N=N)
 pvalues_pt3 = get_power(effect_sizes=effect_size_pt3, N=N)
+
+pvalues_pt1 <- read.csv("/Users/au620441/Desktop/mb5-analysis/power_analysis/pvalues_pt1.csv")
+pvalues_pt2 <- read.csv("/Users/au620441/Desktop/mb5-analysis/power_analysis/pvalues_pt2.csv")
+pvalues_pt3 <- read.csv("/Users/au620441/Desktop/mb5-analysis/power_analysis/pvalues_pt3.csv")
+
 
 report_main_effects <- function(pvalues) {
   paste(length(which(pvalues$stimulus_type1<.05)), "of",N, "simulations had p <",.05, "for stimulus type.",
