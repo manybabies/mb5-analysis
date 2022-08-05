@@ -1,6 +1,3 @@
-install.packages('lmem.sim')
-devtools::install_github("debruine/lmem_sim")
-
 library('lmem.sim')
 library("lme4")        # model specification / estimation
 library("afex")        # anova and deriving p-values from lmer
@@ -10,33 +7,6 @@ library("tidyverse")   # data wrangling and visualisation
 library('viridis')
 
 set.seed(1234)
-
-# set all data-generating parameters
-beta_0  <- 0 # intercept; i.e., the grand mean
-beta_c  <-  0.3 # slope for complexity
-beta_f <- 0.3 # slope for familiarization time
-item_0 <-  1 # by-item random intercept sd
-subject_0   <- 1 # by-subject random intercept sd
-subject_c   <-  1 # by-subject random slope complexity sd
-subject_f <- 1 # by-subject random slope familiarization sd
-subject_cf <- 1 # by-subject random slope complexity*familiarization sd
-subj_rho     <-  c(.1,.1,.1,.1,.1,.1) # correlations between by-subject random effects
-lab_0   <- 1 # by-lab random intercept sd
-lab_c   <-  1 # by-lab random slope complexity sd
-lab_f <- 1 # by-lab random slope familiarization sd
-lab_cf <- 1 # by-lab random slope complexity*familiarization sd
-lab_rho     <-  c(.1,.1,.1,.1,.1,.1) # correlations between by-lab random effects
-sigma   <- 1 # residual (error) sd
-
-# set number of subjects and items
-n_subj     <- 1280 # number of subjects
-n_lab <- 40 #number of labs
-n_simple  <-  12 # number of simple items
-n_complex <-  12 # number of complex items
-n_small_fam <- 8
-n_medium_fam <- 8
-n_high_fam <- 8
-
 
 # set up the custom data simulation function
 my_sim_data <- function(
@@ -49,15 +19,15 @@ my_sim_data <- function(
     n_lab = 40,
     
     beta_0  =  0, # intercept; i.e., the grand mean
-    beta_c  =  0.5, # main effect for complexity
-    beta_f = 0.5, # main effect for familiarization time
-    beta_a = 0.5, # main effect for age
+    beta_c  =  0.3, # main effect for complexity
+    beta_f = 0.3, # main effect for familiarization time
+    beta_a = 0.3, # main effect for age
     
-    beta_ca = 0.5,
-    beta_af = 0.5,
-    beta_cf = 0.5,
+    beta_ca = 0.3,
+    beta_af = 0.3,
+    beta_cf = 0.3,
     
-    beta_cfa = 0.5, #main effect for interaction between complexity and familiarization.
+    beta_cfa = 0.3, #main effect for interaction between complexity and familiarization.
     
     item_0 =  0.2, # by-item random intercept sd
     familiarisation_0 =  0.2, # by-familiarisation random intercept sd
@@ -65,15 +35,15 @@ my_sim_data <- function(
     
     subject_0   = 0.5, # by-subject random intercept sd
     
-    subject_c   =  0.5, # by-subject slope complexity sd
-    subject_f = 0.5, # by-subject slope familiarization sd
-    subject_a = 0.5, # by-subject slope age sd
+    subject_c   =  0.2, # by-subject slope complexity sd
+    subject_f = 0.2, # by-subject slope familiarization sd
+    subject_a = 0.2, # by-subject slope age sd
     
     subject_ca = 0.2,# by-subject slope for interaction betewen age and complexity sd
     subject_af = 0.2, # by-subject slope for interaction betewen age and familiarisation sd
     subject_cf = 0.2, # by-subject slope complexity*familiarization sd
     
-    subject_cfa = 0.5, # by-subject slope for interaction betewen age, complexity and familiarisation sd
+    subject_cfa = 0.2, # by-subject slope for interaction betewen age, complexity and familiarisation sd
 
     subj_rho     =  .2, # correlations between by-subject random effects
     
@@ -147,8 +117,9 @@ my_sim_data <- function(
   # cross subject and item IDs 
   temp <- crossing(subjects, items)  %>%
     left_join(lab_subj_dict) %>%
-    left_join(labs) %>%
-    
+    left_join(labs)
+  
+  temp %>%
     mutate(
       B_0  = beta_0 + S_0 + L_0 + O_0i,
       
@@ -170,90 +141,145 @@ my_sim_data <- function(
 
 dat_sim <- my_sim_data()
 
+#Make plots to see what's going on:
+
+#Main effects:
+
+#Familiarisation:
+dat_sim_plot_familiarisation <- dat_sim %>%
+  group_by(X_f) %>%
+  dplyr::summarise(med_DV = median(DV))
+
 dat_sim %>%
   mutate(X_f = as.factor(X_f)) %>%
   ggplot() +
   geom_point(aes(y = DV, x = X_f), position = "jitter", alpha = 0.2, size = 0.2) +
   geom_violin(aes(y = DV, x = X_f, fill = familiarisation), alpha = 0.2) +
+  geom_line(aes(y = med_DV, x = as.factor(X_f), group = 1), data = dat_sim_plot_familiarisation) +
+  geom_point(aes(y = med_DV, x = as.factor(X_f)), alpha = 0.8, size = 2, data = dat_sim_plot_familiarisation) +
   scale_fill_manual(values=viridis(n = 3)) +
+  ggtitle('Familiarization') +
   theme_bw()
 
-dat_sim %>%
-  mutate(X_f = as.factor(category)) %>%
-  ggplot() +
-  geom_point(aes(y = DV, x = category), position = "jitter", alpha = 0.2, size = 0.2) +
-  geom_violin(aes(y = DV, x = category, fill = category), alpha = 0.2) +
-  scale_fill_manual(values=viridis(n = 2)) +
-  theme_bw()
-
-dat_sim %>%
-  ggplot() +
-  geom_point(aes(y = DV, x = X_a), position = "jitter", alpha = 0.2, size = 0.2) +
-  geom_smooth(method = "lm", se = TRUE, aes(y = DV, x = X_a)) +
-  theme_bw()
-
-dat_sim %>%
-  mutate(lab_id = as.factor(lab_id)) %>%
-  ggplot() +
-  geom_point(aes(y = DV, x = lab_id), position = "jitter", alpha = 0.2, size = 0.2) +
-  geom_violin(aes(y = DV, x = lab_id, fill = lab_id), alpha = 0.2) +
-  scale_fill_manual(values=viridis(n = n_lab)) +
-  theme_bw()
-
-dat_sim %>%
-  mutate(X_c = as.factor(X_c)) %>%
-  ggplot() +
-  geom_point(aes(y = DV, x = X_a), position = "jitter", alpha = 0.2, size = 0.2) +
-  geom_smooth(method = "lm", se = TRUE, aes(y = DV, x = X_a)) +
-  facet_wrap(~lab_id) +
-  theme_bw()
-
-dat_interaction <- dat_sim %>%
-  mutate(X_c = as.factor(X_c)) %>%
-  group_by(X_f, X_c) %>%
+#Complexity:
+dat_sim_plot_complexity <- dat_sim %>%
+  group_by(X_c) %>%
   dplyr::summarise(med_DV = median(DV))
 
 dat_sim %>%
   mutate(X_c = as.factor(X_c)) %>%
   ggplot() +
   geom_point(aes(y = DV, x = X_c), position = "jitter", alpha = 0.2, size = 0.2) +
-  geom_violin(aes(y = DV, x = X_c, fill = X_c), alpha = 0.2) +
-  
-  geom_point(aes(y = med_DV, x = X_c), alpha = 0.8, size = 2, data = dat_interaction) +
-  geom_line(aes(y = med_DV, x = X_c, group = X_f), data = dat_interaction) +
-  #scale_fill_manual(values=viridis(n = X_c), data = dat_sim) +
-  facet_wrap(~X_f) +
+  geom_violin(aes(y = DV, x = X_c, fill = category), alpha = 0.2) +
+  geom_line(aes(y = med_DV, x = as.factor(X_c), group = 1), data = dat_sim_plot_complexity) +
+  geom_point(aes(y = med_DV, x = as.factor(X_c)), alpha = 0.8, size = 2, data = dat_sim_plot_complexity) +
+  scale_fill_manual(values=viridis(n = 2)) +
+  ggtitle('Complexity') +
   theme_bw()
-  
-dat_sim <- my_sim_data()
-m1 <- lmer(DV ~ 1 + X_a * X_c * X_f + (1 | lab_id / subj_id) + (1 | item_id), data=dat_sim)
-summary(m1, corr = TRUE)
-coef(m1)
 
-single_run <- function(filename = NULL, ...) {
-  # ... is a shortcut that forwards any additional arguments to my_sim_data()
-  dat_sim <- my_sim_data(...)
-  mod_sim <- lmer(DV ~ X_i + (1 | item_id) + (1 + X_i | subj_id),
-                  dat_sim)
+#Age:
+dat_sim %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = X_a), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_smooth(method = "lm", se = TRUE, aes(y = DV, x = X_a)) +
+  ggtitle('Age') +
+  theme_bw()
+
+#Age*familiarisation: 
+dat_sim %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = X_a), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_smooth(method = "lm", se = TRUE, aes(y = DV, x = X_a)) +
+  facet_wrap(~X_f) +
+  ggtitle('Age x Familiarization Interaction') +
+  theme_bw()
+
+#Age*Complexity
+dat_sim %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = X_a), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_smooth(method = "lm", se = TRUE, aes(y = DV, x = X_a)) +
+  facet_wrap(~X_c) +
+  ggtitle('Age x Complexity Interaction') +
+  theme_bw()
+
+#Familiarisation*Complexity
+dat_f_c_interaction <- dat_sim %>%
+  mutate(X_c = as.factor(X_c)) %>%
+  mutate(X_f = as.factor(X_f)) %>%
+  group_by(X_f, X_c) %>%
+  dplyr::summarise(med_DV = median(DV))
+
+dat_sim %>%
+  mutate(X_c = as.factor(X_c)) %>%
+  mutate(X_f = as.factor(X_f)) %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = X_f), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_point(aes(y = med_DV, x = as.factor(X_f)), alpha = 0.8, size = 2, data = dat_f_c_interaction) +
+  geom_line(aes(y = med_DV, x = as.factor(X_f), group = 1), data = dat_f_c_interaction) +
+  facet_wrap(~X_c) +
+  ggtitle('Familiarization x Complexity Interaction') +
+  theme_bw()
+
+run_sims <- function(filename = 'run_sims.csv') {
+  
+  dat_sim <- my_sim_data()
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + (1 | lab_id / subj_id) + (1 | item_id), data=dat_sim)
   
   sim_results <- broom.mixed::tidy(mod_sim)
   
-  # append the results to a file if filename is set
-  if (!is.null(filename)) {
-    append <- file.exists(filename) # append if the file exists
-    write_csv(sim_results, filename, append = append)
-  }
+  # append the results to a file
+  append <- file.exists(filename)
+  write_csv(sim_results, filename, append = append)
   
   # return the tidy table
   sim_results
 }
 
-filename <- "sims.csv" # change for new analyses
-if (!file.exists(filename)) {
-  # run simulations and save to a file
-  reps <- 5
-  sims <- purrr::map_df(1:reps, ~single_run(filename))
-}
+filename = 'run_sims.csv'
+reps <- 20
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename))
+end_time <- Sys.time()
+end_time - start_time
 
 # read saved simulation data
-sims <- read_csv(filename)
+sims <- read_csv(filename, col_types = cols(
+  # makes sure plots display in this order
+  group = col_factor(ordered = TRUE),
+  term = col_factor(ordered = TRUE)
+))
+sims
+
+# calculate mean estimates and power for specified alpha
+alpha <- 0.05
+
+sim_stats <- sims %>% 
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    power = mean(p.value < alpha)
+  )
+
+sims_fixed <- sims %>%
+  filter(effect == "fixed") %>%
+  mutate(sim = c(rep(c(1:reps), each = 8)))
+                     
+sims_fixed %>%
+  ggplot(aes(x = sim, y = estimate, ymin = estimate-std.error, ymax = estimate+std.error)) +
+  geom_pointrange(fatten = 1/2) +
+  facet_wrap(~term, scales = "free_y") +
+  theme_bw()
+
+sim_ran_stats <- sims %>%
+  filter(effect == "ran_pars") %>%
+  mutate(sim = c(rep(c(1:reps), each = 4)))
+
+sim_ran_stats %>%
+  ggplot(aes(x = sim, y = estimate)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~group, scales = "free_y") +
+  theme_bw()
