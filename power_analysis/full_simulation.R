@@ -238,7 +238,7 @@ run_sims <- function(filename = 'run_sims.csv') {
 }
 
 filename = 'run_sims.csv'
-reps <- 20
+reps <- 100
 start_time <- Sys.time()
 sims <- purrr::map_df(1:reps, ~run_sims(filename))
 end_time <- Sys.time()
@@ -264,6 +264,7 @@ sim_stats <- sims %>%
     power = mean(p.value < alpha)
   )
 
+# visualise estimates for fixed effects:
 sims_fixed <- sims %>%
   filter(effect == "fixed") %>%
   mutate(sim = c(rep(c(1:reps), each = 8)))
@@ -274,7 +275,81 @@ sims_fixed %>%
   facet_wrap(~term, scales = "free_y") +
   theme_bw()
 
+# visualise estimates for random effects:
 sim_ran_stats <- sims %>%
+  filter(effect == "ran_pars") %>%
+  mutate(sim = c(rep(c(1:reps), each = 4)))
+
+sim_ran_stats %>%
+  ggplot(aes(x = sim, y = estimate)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~group, scales = "free_y") +
+  theme_bw()
+
+
+#Explore effects of realistic levels of missing data:
+
+run_sims_missing <- function(filename = 'run_sims_missing_data.csv') {
+  
+  dat_sim <- my_sim_data()
+  
+  uneven_samples <- dat_sim %>%
+    mutate(nas = rbinom(nrow(dat_sim), 1, 1 - .20)) %>%
+    mutate(DV = ifelse(nas == 1, DV, NA))
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + (1 | lab_id / subj_id) + (1 | item_id), data=uneven_samples)
+  
+  sim_results <- broom.mixed::tidy(mod_sim)
+  
+  # append the results to a file
+  append <- file.exists(filename)
+  write_csv(sim_results, filename, append = append)
+  
+  # return the tidy table
+  sim_results
+}
+
+filename = 'run_sims_missing_data.csv'
+reps <- 100
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename))
+end_time <- Sys.time()
+end_time - start_time
+
+
+# read saved simulation data
+sims <- read_csv(filename, col_types = cols(
+  # makes sure plots display in this order
+  group = col_factor(ordered = TRUE),
+  term = col_factor(ordered = TRUE)
+))
+sims
+
+# calculate mean estimates and power for specified alpha
+alpha <- 0.05
+
+sim_stats <- sims_missing %>% 
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    power = mean(p.value < alpha)
+  )
+
+# visualise estimates for fixed effects:
+sims_fixed <- sims_missing %>%
+  filter(effect == "fixed") %>%
+  mutate(sim = c(rep(c(1:reps), each = 8)))
+
+sims_fixed %>%
+  ggplot(aes(x = sim, y = estimate, ymin = estimate-std.error, ymax = estimate+std.error)) +
+  geom_pointrange(fatten = 1/2) +
+  facet_wrap(~term, scales = "free_y") +
+  theme_bw()
+
+# visualise estimates for random effects:
+sim_ran_stats <- sims_missing %>%
   filter(effect == "ran_pars") %>%
   mutate(sim = c(rep(c(1:reps), each = 4)))
 
