@@ -1,0 +1,711 @@
+---
+title: "ManyBabies 5: The Hunter & Ames Model of Infant Looking Preference"
+subtitle: "Supplementary Materials: Data Simulation & Power Analysis"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    latex_engine: xelatex
+  html_document: default
+editor_options:
+  chunk_output_type: console
+geometry: margin=0.8cm
+---
+
+```{r setup, include=FALSE}
+install.packages('pacman')
+pacman::p_load(knitr, # rendering of .Rmd file
+               lme4, # model specification / estimation
+               afex, # anova and deriving p-values from lmer
+               broom.mixed, # extracting data from model fits 
+               faux, # generate correlated values
+               tidyverse, # data wrangling and visualisation
+               ggridges, #visualisation
+               viridis, # color schemes for visualisation
+               kableExtra
+               )
+set.seed(1234)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE, fig.width=12, fig.height=11, fig.fullwidth=TRUE)
+```
+
+\newpage
+
+# Data Simulation
+
+```{r, message = FALSE}
+# set up the custom data simulation function
+my_sim_data <- function(
+    n_subj      = 1280,   # number of subjects
+    n_simple  =  12,   # number of complex stimuli
+    n_complex =  12,   # number of complex stimuli
+    n_small_fam = 8,   #small familiarization time
+    n_medium_fam = 8,  #medium familiarization time
+    n_high_fam = 8,    #high familiarization time
+    n_lab = 40,
+    
+    beta_0  =  0, # intercept; i.e., the grand mean
+    beta_c  =  0.3, # main effect for complexity
+    beta_f = 0.3, # main effect for familiarization time
+    beta_a = 0.3, # main effect for age
+    
+    beta_ca = 0.3,
+    beta_af = 0.3,
+    beta_cf = 0.3,
+    
+    beta_cfa = 0.3, #main effect for interaction between complexity and familiarization.
+    
+    item_0 =  0.2, # by-item random intercept sd
+    subject_0   = 0.2, # by-subject random intercept sd
+    
+    subject_c   =  0.3, # by-subject slope complexity sd
+    subject_f = 0.3, # by-subject slope familiarization sd
+    subject_a = 0.3, # by-subject slope age sd
+    
+    subject_ca = 0.3,# by-subject slope for interaction between age and complexity sd
+    subject_af = 0.3, # by-subject slope for interaction between age and familiarization sd
+    subject_cf = 0.3, # by-subject slope complexity*familiarization sd
+    
+    subject_cfa = 0.3, # by-subject slope for interaction between age, complexity and familiarization sd
+
+    subj_rho     =  .2, # correlations between by-subject random effects
+    
+    lab_0 = 0.2, # by-lab random intercept sd
+    
+    lab_c = 0.2, # by-lab slope complexity sd
+    lab_f = 0.2, # by-lab slope familiarization sd
+    lab_a = 0.2, # by-lab slope age sd
+    
+    lab_ca = 0.2, # by-lab slope for interaction between age and complexity sd
+    lab_af = 0.2, # by-lab slope for interaction between age and familiarization sd
+    lab_cf = 0.2, # by-lab random slope complexity*familiarization sd
+    
+    lab_cfa = 0.2, # by-lab slope for interaction between age, complexity and familiarization sd
+    
+    lab_rho = 0.2, # correlations between by-lab random effects
+    
+    sigma = 0.3 # residual (error) sd
+    ) { # residual (standard deviation)
+  
+  # simulate a sample of items
+  items <- data.frame(
+    item_id = seq_len(n_simple + n_complex),
+    category = rep(c("simple", "complex"), c(n_simple, n_complex)),
+    X_c = rep(c(-0.5, 0.5), c(n_simple, n_complex)),
+    O_0i = rnorm(n = n_simple + n_complex, mean = 0, sd = item_0),
+    
+    familiarization = rep(c("short", "medium", "long"), (n_simple + n_complex)/3),
+    X_f = rep(c(-0.5, 0, 0.5), (n_simple + n_complex)/3)
+  )
+
+  # simulate a sample of subjects
+  subjects <- faux::rnorm_multi(
+    n = n_subj, mu = 0, sd = c(subject_0, 
+                               subject_c, 
+                               subject_f,
+                               subject_a,
+                               subject_ca,
+                               subject_af,
+                               subject_cf,
+                               subject_cfa), r = subj_rho,
+    varnames = c("S_0", "S_c","S_f","S_a",
+                 "S_ca","S_af", "S_cf",
+                 "S_cfa")
+  ) %>%
+    mutate(subj_id = faux::make_id(nrow(.), "S")) %>%
+    mutate(X_a = runif(n_subj, min = -0.5, max = 0.5)) 
+  #add subject age measure, sample from distribution from -0.5 to 0.5. #subjects$subj_id <- 1:n_subj
+  
+  labs <- faux::rnorm_multi(
+    n = n_lab, mu = 0, sd = c(lab_0, lab_c, lab_f, lab_a,
+                              lab_ca, lab_af, lab_cf,
+                              lab_cfa), r = lab_rho, 
+    varnames = c("L_0", "L_c","L_f","L_a",
+                 "L_ca","L_af", "L_cf",
+                 "L_cfa")
+  ) %>%
+    mutate(lab_id = faux::make_id(nrow(.), "L"))
+  
+  #create lab and subj nesting structure
+  #Number of subjects must be a multiple of number of labs
+  lab_multiplier = n_subj/n_lab
+  lab_subj_dict <- data.frame(
+    subj_id = subjects$subj_id,
+    lab_id = rep(labs$lab_id,lab_multiplier)
+  )
+  
+  
+  # cross subject and item IDs 
+  temp <- crossing(subjects, items)  %>%
+    left_join(lab_subj_dict, by = "subj_id") %>%
+    left_join(labs, by = "lab_id")
+  
+  temp %>%
+    mutate(
+      B_0  = beta_0 + S_0 + L_0 + O_0i,
+      
+      B_c  = beta_c + S_c + L_c,
+      B_f  = beta_f + S_f + L_f,
+      B_a = beta_a + S_a + L_a,
+      
+      B_ca = beta_ca + S_ca + L_ca,
+      B_af = beta_af + S_af + L_af,
+      B_cf = beta_cf + S_cf + L_cf,
+      
+      B_cfa = beta_cfa + S_cfa + L_cfa,
+      
+      e_si = rnorm(nrow(temp), mean = 0, sd = sigma),
+      
+      DV = B_0 + 
+        (B_a * X_a) + (B_c * X_c) + (B_f * X_f) + 
+        (B_cf * X_c * X_f) + (B_af * X_a * X_f) + (B_ca * X_c * X_a) + 
+        (B_cfa * X_c * X_f * X_a) + e_si
+    )
+}
+
+dat_sim <- my_sim_data()
+```
+
+# Visualisation of Simulated Data
+
+## Familiarization:
+
+```{r}
+dat_sim_plot_familiarization <- dat_sim %>%
+  group_by(X_f) %>%
+  dplyr::summarise(med_DV = median(DV))
+
+plot_familiarization <- dat_sim %>%
+  mutate(X_f = as.factor(X_f)) %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = X_f), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_violin(aes(y = DV, x = X_f, fill = familiarization), alpha = 0.2) +
+  geom_line(aes(y = med_DV, x = as.factor(X_f), group = 1), data = dat_sim_plot_familiarization) +
+  geom_point(aes(y = med_DV, x = as.factor(X_f)), alpha = 0.8, size = 2, data = dat_sim_plot_familiarization) +
+  scale_fill_manual(values=viridis(n = 3)) +
+  ggtitle('Familiarization') +
+  xlab('Familiarization') +
+  theme_bw()
+
+plot_familiarization <- plot_familiarization + theme(plot.title = element_text(hjust = 0.5, size=20))
+plot_familiarization
+```
+
+## Complexity:
+
+```{r}
+dat_sim_plot_complexity <- dat_sim %>%
+  group_by(X_c) %>%
+  dplyr::summarise(med_DV = median(DV))
+
+plot_complexity <- dat_sim %>%
+  mutate(X_c = as.factor(X_c)) %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = X_c), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_violin(aes(y = DV, x = X_c, fill = category), alpha = 0.2) +
+  geom_line(aes(y = med_DV, x = as.factor(X_c), group = 1), data = dat_sim_plot_complexity) +
+  geom_point(aes(y = med_DV, x = as.factor(X_c)), alpha = 0.8, size = 2, data = dat_sim_plot_complexity) +
+  scale_fill_manual(values=viridis(n = 2)) +
+  ggtitle('Stimulus Complexity') +
+  xlab('Stimulus Complexity') +
+  theme_bw()
+
+plot_complexity <- plot_complexity + theme(plot.title = element_text(hjust = 0.5, size=20))
+plot_complexity
+```
+
+## Age:
+
+```{r}
+plot_age <- dat_sim %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = X_a), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_smooth(method = "lm", se = TRUE, formula = y ~ x, aes(y = DV, x = X_a)) +
+  ggtitle('Age') + 
+  xlab('Age') +
+  theme_bw()
+  
+plot_age <- plot_age + theme(plot.title = element_text(hjust = 0.5, size=20))
+plot_age
+```
+
+
+## Age*Familiarization:
+
+```{r}
+plot_age_familiarization <- dat_sim %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = X_a), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, aes(y = DV, x = X_a)) +
+  facet_wrap(~X_f) +
+  ggtitle('Age x Familiarization Interaction') +
+  xlab('Age') +
+  theme_bw()
+plot_age_familiarization <- plot_age_familiarization + theme(plot.title = element_text(hjust = 0.5, size=20))
+plot_age_familiarization
+```
+
+
+## Age*Complexity:
+
+```{r}
+plot_age_complexity <- dat_sim %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = X_a), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, aes(y = DV, x = X_a)) +
+  facet_wrap(~X_c) +
+  ggtitle('Age x Complexity Interaction') +
+  xlab('Age') +
+  theme_bw()
+
+plot_age_complexity <- plot_age_complexity + theme(plot.title = element_text(hjust = 0.5, size=20))
+plot_age_complexity
+```
+
+
+## Familiarization*Complexity:
+
+```{r}
+dat_f_c_interaction <- dat_sim %>%
+  mutate(X_c = as.factor(X_c)) %>%
+  mutate(X_f = as.factor(X_f)) %>%
+  group_by(X_f, X_c) %>%
+  dplyr::summarise(med_DV = median(DV))
+
+plot_familiarization_complexity <- dat_sim %>%
+  mutate(X_c = as.factor(X_c)) %>%
+  mutate(X_f = as.factor(X_f)) %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = X_f), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_point(aes(y = med_DV, x = as.factor(X_f)), alpha = 0.8, size = 2, data = dat_f_c_interaction) +
+  geom_line(aes(y = med_DV, x = as.factor(X_f), group = 1), data = dat_f_c_interaction) +
+  geom_violin(aes(y = DV, x = X_f, fill = familiarization), alpha = 0.2) +
+  scale_fill_manual(values=viridis(n = 3)) +
+  facet_wrap(~X_c) +
+  ggtitle('Familiarization x Complexity Interaction') +
+  xlab('Familiarization') +
+  theme_bw()
+plot_familiarization_complexity <- plot_familiarization_complexity + theme(plot.title = element_text(hjust = 0.5, size=20))
+plot_familiarization_complexity
+```
+
+## Variability by Lab
+```{r, fig.height=17, warning=FALSE, echo=FALSE}
+plot_labs <- dat_sim %>%
+  mutate(lab_id = as.factor(lab_id)) %>%
+  ggplot() +
+  geom_density_ridges(aes(y = reorder(lab_id, DV), x = DV, color = "black", fill = lab_id), show.legend = FALSE, quantile_lines = TRUE, quantiles = c(0.025, 0.5, 0.975), alpha = 0.4, scale = 1.1) +
+  ggtitle('Variability by Lab') +
+  geom_vline(xintercept = 0, color = "black", size = 0.3, linetype = "dotted") +
+  xlab('DV') +
+  ylab('Lab') +
+  xlim(c(-2, 2)) +
+  scale_color_manual(values=c(viridis(n = 40))) +
+  scale_fill_manual(values=c(viridis(n = 40))) +
+  theme_bw()
+
+plot_labs <- plot_labs + theme(plot.title = element_text(hjust = 0.5, size=20))
+plot_labs
+```
+
+
+# Power Calculation with Full Data
+
+## Effect Size = 0.5
+
+```{r, warning = FALSE, message = FALSE}
+# Number of simulations:
+reps <- 150
+
+# Simulation function:
+run_sims <- function(filename_full, ef) {
+  
+  dat_sim <- my_sim_data(beta_c  =  ef, 
+                         beta_f = ef,
+                         beta_a = ef,
+                         
+                         beta_ca = ef,
+                         beta_af = ef,
+                         beta_cf = ef,
+                         
+                         beta_cfa = ef)
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + (1 | subj_id) + (1 | lab_id) + (1 | item_id), data=dat_sim)
+  
+  sim_results <- broom.mixed::tidy(mod_sim)
+  
+  # append the results to a file
+  append <- file.exists(filename_full)
+  write_csv(sim_results, filename_full, append = append)
+  
+  # return the tidy table
+  sim_results
+}
+
+filename_full_0.5 = 'run_sims_full_0.5.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.5, ef = 0.5))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Effect Size = 0.4
+
+```{r, warning = FALSE, message = FALSE}
+filename_full_0.4 = 'run_sims_full_0.4.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.4, ef = 0.4))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Effect Size = 0.3
+
+```{r, warning = FALSE, message = FALSE}
+filename_full_0.3 = 'run_sims_full_0.3.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.3, ef = 0.3))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+### Visualise Estimates for Fixed Effects:
+
+```{r}
+sims_full_0.3 <- read_csv(filename_full_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                              term = col_factor(ordered = TRUE)))
+
+fixed_full_plot <- sims_full_0.3 %>%
+  filter(effect == "fixed") %>%
+  ungroup() %>%
+  arrange(term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 8)) %>%
+  ggplot(aes(x = row, y = estimate, ymin = estimate-std.error, ymax = estimate+std.error)) +
+  facet_wrap(~term, scales = "free") +
+  geom_pointrange(fatten = 1/2) +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Fixed Effects for Full Data, ef = 0.3') +
+  theme_bw()
+
+fixed_full_plot <- fixed_full_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+fixed_full_plot
+```
+
+### Visualise Estimates for Random Effects:
+
+```{r}
+ran_full_plot <- sims_full_0.3 %>%
+  filter(effect == "ran_pars") %>%
+  ungroup() %>%
+  arrange(group, estimate) %>%
+  mutate(row = rep(seq(1:reps), 4)) %>%
+  ggplot(aes(x = row, y = estimate)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~group, scales = "free_y") +
+  theme_bw() +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Random Effects for Full Data, ef = 0.3') +
+  theme_bw()
+ran_full_plot <- ran_full_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+ran_full_plot
+```
+
+## Effect Size = 0.2
+
+```{r, warning = FALSE, message = FALSE}
+filename_full_0.2 = 'run_sims_full_0.2.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.2, ef = 0.2))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Effect Size = 0.1
+
+```{r, warning = FALSE, message = FALSE}
+filename_full_0.1 = 'run_sims_full_0.1.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.1, ef = 0.1))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+
+# Power Calculation with Missing Data
+
+## Effect Size = 0.5
+
+```{r,  warning = FALSE, message = FALSE}
+run_sims_missing <- function(filename_missing, ef) {
+  
+  dat_sim <- my_sim_data(beta_c  =  ef, 
+                         beta_f = ef,
+                         beta_a = ef,
+                         
+                         beta_ca = ef,
+                         beta_af = ef,
+                         beta_cf = ef,
+                         
+                         beta_cfa = ef)
+  
+  missing_samples <- dat_sim %>%
+    mutate(nas = rbinom(nrow(dat_sim), 1, 1 - .50)) %>%
+    mutate(DV = ifelse(nas == 1, DV, NA)) %>%
+    drop_na()
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + (1 | subj_id) + (1 | lab_id) + (1 | item_id), data=missing_samples)
+  
+  sim_results <- broom.mixed::tidy(mod_sim)
+  
+  # append the results to a file
+  append <- file.exists(filename_missing)
+  write_csv(sim_results, filename_missing, append = append)
+  
+  # return the tidy table
+  sim_results
+}
+
+filename_missing_0.5 = 'run_sims_missing_0.5.csv'
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_missing_0.5, ef = 0.5))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Effect Size = 0.4
+
+```{r,  warning = FALSE, message = FALSE}
+filename_missing_0.4 = 'run_sims_missing_0.4.csv'
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_missing_0.4, ef = 0.4))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+
+## Effect Size = 0.3
+
+```{r,  warning = FALSE, message = FALSE}
+filename_missing_0.3 = 'run_sims_missing_0.3.csv'
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_missing_0.3, ef = 0.3))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+
+### Visualise Estimates for Fixed Effects:
+
+```{r}
+# read saved simulation data
+sims_missing_0.3 <- read_csv(filename_missing_0.3, col_types = cols(
+  # makes sure plots display in this order
+  group = col_factor(ordered = TRUE),
+  term = col_factor(ordered = TRUE)
+))
+
+fixed_missing_plot <- sims_missing_0.3 %>%
+  filter(effect == "fixed") %>%
+  ungroup() %>%
+  arrange(term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 8)) %>%
+  ggplot(aes(x = row, y = estimate, ymin = estimate-std.error, ymax = estimate+std.error)) +
+  facet_wrap(~term, scales = "free") +
+  geom_pointrange(fatten = 1/2) +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Fixed Effects for Missing Data, ef = 0.3') +
+  theme_bw()
+
+fixed_missing_plot <- fixed_missing_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+fixed_missing_plot
+```
+
+
+### Visualise Estimates for Random Effects:
+
+```{r}
+ran_missing_plot <- sims_missing_0.3 %>%
+  filter(effect == "ran_pars") %>%
+  ungroup() %>%
+  arrange(group, estimate) %>%
+  mutate(row = rep(seq(1:reps), 4)) %>%
+  ggplot(aes(x = row, y = estimate)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~group, scales = "free_y") +
+  theme_bw() +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Random Effects for Missing Data, ef = 0.3') +
+  theme_bw()
+ran_missing_plot <- ran_missing_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+ran_missing_plot
+```
+
+
+## Effect Size = 0.2
+
+```{r,  warning = FALSE, message = FALSE}
+filename_missing_0.2 = 'run_sims_missing_0.2.csv'
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_missing_0.2, ef = 0.2))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Effect Size = 0.1
+
+```{r,  warning = FALSE, message = FALSE}
+filename_missing_0.1 = 'run_sims_missing_0.1.csv'
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_missing_0.1, ef = 0.1))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+# Overview of Power Simulation Results
+
+## Summary Statistics for Power Calculation with Full Data:
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+# calculate mean estimates and power for specified alpha
+alpha <- 0.05
+
+sim_stats_full_0.5 <- 
+  read_csv(filename_full_0.5, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.5" = mean(p.value < alpha)
+  )
+
+sim_stats_full_0.4 <-
+  read_csv(filename_full_0.4, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.4" = mean(p.value < alpha)
+  )
+
+sim_stats_full_0.3 <-
+  read_csv(filename_full_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.3" = mean(p.value < alpha)
+  )
+
+sim_stats_full_0.2 <-
+  read_csv(filename_full_0.2, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.2" = mean(p.value < alpha)
+  )
+
+sim_stats_full_0.1 <-
+  read_csv(filename_full_0.1, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.1" = mean(p.value < alpha)
+  )
+
+sim_stats_full <- cbind(sim_stats_full_0.3[,1], 
+                        sim_stats_full_0.1[,4], 
+                        sim_stats_full_0.2[,4], 
+                        sim_stats_full_0.3[,4], 
+                        sim_stats_full_0.4[,4], 
+                        sim_stats_full_0.5[,4])
+
+sim_stats_full %>%
+  kbl(caption = "Power for Simulations with Full Data", digits=3, align = "c") %>%
+  kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+```
+
+## Summary Statistics for Power Calculation with Missing Data:
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+sim_stats_missing_0.5 <-
+  read_csv(filename_missing_0.5, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.5" = mean(p.value < alpha)
+  )
+
+sim_stats_missing_0.4 <-
+  read_csv(filename_missing_0.4, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.4" = mean(p.value < alpha)
+  )
+
+sim_stats_missing_0.3 <-
+  read_csv(filename_missing_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.3" = mean(p.value < alpha)
+  )
+
+sim_stats_missing_0.2 <-
+  read_csv(filename_missing_0.2, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.2" = mean(p.value < alpha)
+  )
+
+sim_stats_missing_0.1 <-
+  read_csv(filename_missing_0.1, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.1" = mean(p.value < alpha)
+  )
+
+sim_stats_missing <- cbind(sim_stats_missing_0.1[,1], 
+                           sim_stats_missing_0.1[,4], 
+                           sim_stats_missing_0.2[,4], 
+                           sim_stats_missing_0.3[,4], 
+                           sim_stats_missing_0.4[,4], 
+                           sim_stats_missing_0.5[,4])
+
+sim_stats_missing %>%
+  kbl(caption = "Power for Simulations with Missing Data", digits=3, align = "c") %>%
+  kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+```
