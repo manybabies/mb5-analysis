@@ -1,6 +1,7 @@
 ---
 title: "ManyBabies 5: The Hunter and Ames Model of Infant Looking Preference"
 subtitle: "Supplementary Materials: Data Simulation and Power Analysis"
+author: "ManyBabies Analysis Team"
 output:
   pdf_document:
     toc: true
@@ -30,31 +31,31 @@ opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE, fig.width=12, fig.heig
 ```
 
 ```{r, include = FALSE}
-filename_full_int_0.1 = 'run_sims_full_int_0.1.csv'
-filename_full_int_0.2 = 'run_sims_full_int_0.2.csv'
-filename_full_int_0.3 = 'run_sims_full_int_0.3.csv'
-filename_full_int_0.5 = 'run_sims_full_int_0.4.csv'
-filename_full_int_0.4 = 'run_sims_full_int_0.5.csv'
+filename_full_int_0.1 = 'sims/run_sims_full_int_0.1.csv'
+filename_full_int_0.2 = 'sims/run_sims_full_int_0.2.csv'
+filename_full_int_0.3 = 'sims/run_sims_full_int_0.3.csv'
+filename_full_int_0.5 = 'sims/run_sims_full_int_0.4.csv'
+filename_full_int_0.4 = 'sims/run_sims_full_int_0.5.csv'
 
-filename_full_0.1 = 'run_sims_full_0.1.csv'
-filename_full_0.2 = 'run_sims_full_0.2.csv'
-filename_full_0.3 = 'run_sims_full_0.3.csv'
-filename_full_0.4 = 'run_sims_full_0.4.csv'
-filename_full_0.5 = 'run_sims_full_0.5.csv'
+filename_full_0.1 = 'sims/run_sims_full_0.1.csv'
+filename_full_0.2 = 'sims/run_sims_full_0.2.csv'
+filename_full_0.3 = 'sims/run_sims_full_0.3.csv'
+filename_full_0.4 = 'sims/run_sims_full_0.4.csv'
+filename_full_0.5 = 'sims/run_sims_full_0.5.csv'
 
-filename_20_missing_0.1 = 'run_sims_20_missing_0.1.csv'
-filename_20_missing_0.2 = 'run_sims_20_missing_0.2.csv'
-filename_20_missing_0.3 = 'run_sims_20_missing_0.3.csv'
-filename_20_missing_0.4 = 'run_sims_20_missing_0.4.csv'
-filename_20_missing_0.5 = 'run_sims_20_missing_0.5.csv'
+filename_20_missing_0.1 = 'sims/run_sims_20_missing_0.1.csv'
+filename_20_missing_0.2 = 'sims/run_sims_20_missing_0.2.csv'
+filename_20_missing_0.3 = 'sims/run_sims_20_missing_0.3.csv'
+filename_20_missing_0.4 = 'sims/run_sims_20_missing_0.4.csv'
+filename_20_missing_0.5 = 'sims/run_sims_20_missing_0.5.csv'
 
-filename_50_missing_0.1 = 'run_sims_50_missing_0.1.csv'
-filename_50_missing_0.2 = 'run_sims_50_missing_0.2.csv'
-filename_50_missing_0.3 = 'run_sims_50_missing_0.3.csv'
-filename_50_missing_0.4 = 'run_sims_50_missing_0.4.csv'
-filename_50_missing_0.5 = 'run_sims_50_missing_0.5.csv'
+filename_50_missing_0.1 = 'sims/run_sims_50_missing_0.1.csv'
+filename_50_missing_0.2 = 'sims/run_sims_50_missing_0.2.csv'
+filename_50_missing_0.3 = 'sims/run_sims_50_missing_0.3.csv'
+filename_50_missing_0.4 = 'sims/run_sims_50_missing_0.4.csv'
+filename_50_missing_0.5 = 'sims/run_sims_50_missing_0.5.csv'
 
-reps <- 150
+reps <- 500
 ```
 
 \newpage
@@ -384,7 +385,7 @@ plot_item
 
 ```{r, warning = FALSE, message = FALSE, eval = FALSE}
 # Number of simulations:
-reps <- 150
+reps <- 350
 
 # Simulation function:
 run_sims <- function(filename_full, ef) {
@@ -629,7 +630,7 @@ end_time <- Sys.time()
 end_time - start_time
 ```
 
-# Power Calculation with 20% Missing Data and Varying Intercepts and Varying Slopes
+# Power Calculation with 20 pct. Missing Data and Varying Intercepts and Varying Slopes
 
 ## Effect Size = 0.5
 
@@ -1186,3 +1187,9 @@ sim_stats_missing %>%
   kbl(caption = "Power for Simulations with 50 pct. Missing Data and Varying Intercepts and Slopes", digits=3, align = "c") %>%
   kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
 ```
+
+
+
+
+
+
