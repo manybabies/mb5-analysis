@@ -1,6 +1,7 @@
 ---
-title: "ManyBabies 5: The Hunter & Ames Model of Infant Looking Preference"
-subtitle: "Supplementary Materials: Data Simulation & Power Analysis"
+title: "ManyBabies 5: The Hunter and Ames Model of Infant Looking Preference"
+subtitle: "Supplementary Materials: Data Simulation and Power Analysis"
+author: "ManyBabies Analysis Team"
 output:
   pdf_document:
     toc: true
@@ -29,12 +30,39 @@ set.seed(1234)
 opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE, fig.width=12, fig.height=11, fig.fullwidth=TRUE)
 ```
 
+```{r, include = FALSE}
+filename_full_int_0.1 = 'sims/run_sims_full_int_0.1.csv'
+filename_full_int_0.2 = 'sims/run_sims_full_int_0.2.csv'
+filename_full_int_0.3 = 'sims/run_sims_full_int_0.3.csv'
+filename_full_int_0.5 = 'sims/run_sims_full_int_0.4.csv'
+filename_full_int_0.4 = 'sims/run_sims_full_int_0.5.csv'
+
+filename_full_0.1 = 'sims/run_sims_full_0.1.csv'
+filename_full_0.2 = 'sims/run_sims_full_0.2.csv'
+filename_full_0.3 = 'sims/run_sims_full_0.3.csv'
+filename_full_0.4 = 'sims/run_sims_full_0.4.csv'
+filename_full_0.5 = 'sims/run_sims_full_0.5.csv'
+
+filename_20_missing_0.1 = 'sims/run_sims_20_missing_0.1.csv'
+filename_20_missing_0.2 = 'sims/run_sims_20_missing_0.2.csv'
+filename_20_missing_0.3 = 'sims/run_sims_20_missing_0.3.csv'
+filename_20_missing_0.4 = 'sims/run_sims_20_missing_0.4.csv'
+filename_20_missing_0.5 = 'sims/run_sims_20_missing_0.5.csv'
+
+filename_50_missing_0.1 = 'sims/run_sims_50_missing_0.1.csv'
+filename_50_missing_0.2 = 'sims/run_sims_50_missing_0.2.csv'
+filename_50_missing_0.3 = 'sims/run_sims_50_missing_0.3.csv'
+filename_50_missing_0.4 = 'sims/run_sims_50_missing_0.4.csv'
+filename_50_missing_0.5 = 'sims/run_sims_50_missing_0.5.csv'
+
+reps <- 500
+```
+
 \newpage
 
 # Data Simulation
 
 ```{r, message = FALSE}
-# set up the custom data simulation function
 my_sim_data <- function(
     n_subj      = 1280,   # number of subjects
     n_simple  =  12,   # number of complex stimuli
@@ -55,18 +83,17 @@ my_sim_data <- function(
     
     beta_cfa = 0.3, #main effect for interaction between complexity and familiarization.
     
-    item_0 =  0.2, # by-item random intercept sd
     subject_0   = 0.2, # by-subject random intercept sd
     
-    subject_c   =  0.3, # by-subject slope complexity sd
-    subject_f = 0.3, # by-subject slope familiarization sd
-    subject_a = 0.3, # by-subject slope age sd
+    subject_c   =  0.2, # by-subject slope complexity sd
+    subject_f = 0.2, # by-subject slope familiarization sd
+    subject_a = 0.2, # by-subject slope age sd
     
-    subject_ca = 0.3,# by-subject slope for interaction between age and complexity sd
-    subject_af = 0.3, # by-subject slope for interaction between age and familiarization sd
-    subject_cf = 0.3, # by-subject slope complexity*familiarization sd
+    subject_ca = 0.2,# by-subject slope for interaction between age and complexity sd
+    subject_af = 0.2, # by-subject slope for interaction between age and familiarization sd
+    subject_cf = 0.2, # by-subject slope complexity*familiarization sd
     
-    subject_cfa = 0.3, # by-subject slope for interaction between age, complexity and familiarization sd
+    subject_cfa = 0.2, # by-subject slope for interaction between age, complexity and familiarization sd
 
     subj_rho     =  .2, # correlations between by-subject random effects
     
@@ -84,6 +111,21 @@ my_sim_data <- function(
     
     lab_rho = 0.2, # correlations between by-lab random effects
     
+    item_0 =  0.2, # by-item random intercept sd
+    
+    item_c = 0.2, # by-item slope complexity sd
+    item_f = 0.2, # by-item slope familiarization sd
+    item_a = 0.2, # by-item slope age sd
+    
+    item_ca = 0.2, # by-item slope for interaction between age and complexity sd
+    item_af = 0.2, # by-item slope for interaction between age and familiarization sd
+    item_cf = 0.2, # by-item random slope complexity*familiarization sd
+    
+    item_cfa = 0.2, # by-item slope for interaction between age, complexity and familiarization sd
+    
+    item_rho = 0.2, # correlations between by-item random effects
+    
+    
     sigma = 0.3 # residual (error) sd
     ) { # residual (standard deviation)
   
@@ -92,14 +134,24 @@ my_sim_data <- function(
     item_id = seq_len(n_simple + n_complex),
     category = rep(c("simple", "complex"), c(n_simple, n_complex)),
     X_c = rep(c(-0.5, 0.5), c(n_simple, n_complex)),
-    O_0i = rnorm(n = n_simple + n_complex, mean = 0, sd = item_0),
-    
     familiarization = rep(c("short", "medium", "long"), (n_simple + n_complex)/3),
-    X_f = rep(c(-0.5, 0, 0.5), (n_simple + n_complex)/3)
-  )
-
+    X_f = rep(c(-0.5, 0, 0.5), (n_simple + n_complex)/3),
+    faux::rnorm_multi(
+    n = n_simple + n_complex, mu = 0, sd = c(item_0, 
+                               item_c, 
+                               item_f,
+                               item_a,
+                               item_ca,
+                               item_af,
+                               item_cf,
+                               item_cfa), r = item_rho,
+    varnames = c("I_0", "I_c","I_f","I_a",
+                 "I_ca","I_af", "I_cf",
+                 "I_cfa")))
+  
   # simulate a sample of subjects
-  subjects <- faux::rnorm_multi(
+  subjects <- 
+    faux::rnorm_multi(
     n = n_subj, mu = 0, sd = c(subject_0, 
                                subject_c, 
                                subject_f,
@@ -142,17 +194,17 @@ my_sim_data <- function(
   
   temp %>%
     mutate(
-      B_0  = beta_0 + S_0 + L_0 + O_0i,
+      B_0  = beta_0 + S_0 + L_0 + I_0,
       
-      B_c  = beta_c + S_c + L_c,
-      B_f  = beta_f + S_f + L_f,
-      B_a = beta_a + S_a + L_a,
+      B_c  = beta_c + S_c + L_c + I_c,
+      B_f  = beta_f + S_f + L_f + I_f,
+      B_a = beta_a + S_a + L_a + I_a,
       
-      B_ca = beta_ca + S_ca + L_ca,
-      B_af = beta_af + S_af + L_af,
-      B_cf = beta_cf + S_cf + L_cf,
+      B_ca = beta_ca + S_ca + L_ca + I_ca,
+      B_af = beta_af + S_af + L_af + I_af,
+      B_cf = beta_cf + S_cf + L_cf + I_cf,
       
-      B_cfa = beta_cfa + S_cfa + L_cfa,
+      B_cfa = beta_cfa + S_cfa + L_cfa + I_cfa,
       
       e_si = rnorm(nrow(temp), mean = 0, sd = sigma),
       
@@ -290,7 +342,7 @@ plot_familiarization_complexity
 ```
 
 ## Variability by Lab
-```{r, fig.height=17, warning=FALSE, echo=FALSE}
+```{r, fig.height=14, warning=FALSE, echo=FALSE, message = FALSE}
 plot_labs <- dat_sim %>%
   mutate(lab_id = as.factor(lab_id)) %>%
   ggplot() +
@@ -308,14 +360,32 @@ plot_labs <- plot_labs + theme(plot.title = element_text(hjust = 0.5, size=20))
 plot_labs
 ```
 
+## Variability by Item
+```{r, fig.height=14, warning=FALSE, echo=FALSE, message = FALSE}
+plot_item <- dat_sim %>%
+  mutate(item_id = as.factor(item_id)) %>%
+  ggplot() +
+  geom_density_ridges(aes(y = reorder(item_id, DV), x = DV, color = "black", fill = item_id), show.legend = FALSE, quantile_lines = TRUE, quantiles = c(0.025, 0.5, 0.975), alpha = 0.4, scale = 1.1) +
+  ggtitle('Variability by Item') +
+  geom_vline(xintercept = 0, color = "black", size = 0.3, linetype = "dotted") +
+  xlab('DV') +
+  ylab('Item') +
+  xlim(c(-2, 2)) +
+  scale_color_manual(values=c(viridis(n = 24))) +
+  scale_fill_manual(values=c(viridis(n = 24))) +
+  theme_bw()
 
-# Power Calculation with Full Data
+plot_item <- plot_item + theme(plot.title = element_text(hjust = 0.5, size=20))
+plot_item
+```
+
+# Power Calculation with Full Data and Varying Intercepts and Varying Slopes
 
 ## Effect Size = 0.5
 
-```{r, warning = FALSE, message = FALSE}
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
 # Number of simulations:
-reps <- 150
+reps <- 350
 
 # Simulation function:
 run_sims <- function(filename_full, ef) {
@@ -330,7 +400,11 @@ run_sims <- function(filename_full, ef) {
                          
                          beta_cfa = ef)
   
-  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + (1 | subj_id) + (1 | lab_id) + (1 | item_id), data=dat_sim)
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
+                    (1 + X_c * X_f | subj_id) + 
+                    (1 | lab_id) + 
+                    (1 | item_id), 
+                  data=dat_sim)
   
   sim_results <- broom.mixed::tidy(mod_sim)
   
@@ -351,7 +425,7 @@ end_time - start_time
 
 ## Effect Size = 0.4
 
-```{r, warning = FALSE, message = FALSE}
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
 filename_full_0.4 = 'run_sims_full_0.4.csv'
 start_time <- Sys.time()
 sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.4, ef = 0.4))
@@ -361,7 +435,7 @@ end_time - start_time
 
 ## Effect Size = 0.3
 
-```{r, warning = FALSE, message = FALSE}
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
 filename_full_0.3 = 'run_sims_full_0.3.csv'
 start_time <- Sys.time()
 sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.3, ef = 0.3))
@@ -385,7 +459,7 @@ fixed_full_plot <- sims_full_0.3 %>%
   geom_pointrange(fatten = 1/2) +
   ylab("Estimates") +
   xlab("Simulations") +
-  ggtitle('Estimates of Fixed Effects for Full Data, ef = 0.3') +
+  ggtitle('Estimates of Fixed Effects for Full Data and Varying Intercepts and Varying Slopes, ef = 0.3') +
   theme_bw()
 
 fixed_full_plot <- fixed_full_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
@@ -398,6 +472,130 @@ fixed_full_plot
 ran_full_plot <- sims_full_0.3 %>%
   filter(effect == "ran_pars") %>%
   ungroup() %>%
+  arrange(group, term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 13)) %>%
+  ggplot(aes(x = row, y = estimate)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~group + term, scales = "free_y") +
+  theme_bw() +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Random Effects Full Random-Effects Structure, ef = 0.3') +
+  theme_bw()
+ran_full_plot <- ran_full_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+ran_full_plot
+```
+
+## Effect Size = 0.2
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+filename_full_0.2 = 'run_sims_full_0.2.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.2, ef = 0.2))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Effect Size = 0.1
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+filename_full_0.1 = 'run_sims_full_0.1.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.1, ef = 0.1))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+# Power Calculation with Full Data and Varying Intercepts
+
+## Effect Size = 0.5
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+# Simulation function:
+run_sims <- function(filename_full, ef) {
+  
+  dat_sim <- my_sim_data(beta_c  =  ef, 
+                         beta_f = ef,
+                         beta_a = ef,
+                         
+                         beta_ca = ef,
+                         beta_af = ef,
+                         beta_cf = ef,
+                         
+                         beta_cfa = ef)
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
+                    (1 | subj_id) + 
+                    (1 | lab_id) + 
+                    (1 | item_id), 
+                  data=dat_sim)
+  
+  sim_results <- broom.mixed::tidy(mod_sim)
+  
+  # append the results to a file
+  append <- file.exists(filename_full)
+  write_csv(sim_results, filename_full, append = append)
+  
+  # return the tidy table
+  sim_results
+}
+
+filename_full_int_0.5 = 'run_sims_full_int_0.5.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_int_0.5, ef = 0.5))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Effect Size = 0.4
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+filename_full_int_0.4 = 'run_sims_full_int_0.4.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_int_0.4, ef = 0.4))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Effect Size = 0.3
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+filename_full_int_0.3 = 'run_sims_full_int_0.3.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_int_0.3, ef = 0.3))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+### Visualise Estimates for Fixed Effects:
+
+```{r}
+sims_full_int_0.3 <- read_csv(filename_full_int_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                              term = col_factor(ordered = TRUE)))
+
+fixed_full_int_plot <- sims_full_int_0.3 %>%
+  filter(effect == "fixed") %>%
+  ungroup() %>%
+  arrange(term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 8)) %>%
+  ggplot(aes(x = row, y = estimate, ymin = estimate-std.error, ymax = estimate+std.error)) +
+  facet_wrap(~term, scales = "free") +
+  geom_pointrange(fatten = 1/2) +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Fixed Effects for Full Data and Random Intercepts, ef = 0.3') +
+  theme_bw()
+
+fixed_full_int_plot <- fixed_full_int_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+fixed_full_int_plot
+```
+
+### Visualise Estimates for Random Effects:
+
+```{r}
+ran_full_int_plot <- sims_full_int_0.3 %>%
+  filter(effect == "ran_pars") %>%
+  ungroup() %>%
   arrange(group, estimate) %>%
   mutate(row = rep(seq(1:reps), 4)) %>%
   ggplot(aes(x = row, y = estimate)) +
@@ -408,36 +606,172 @@ ran_full_plot <- sims_full_0.3 %>%
   xlab("Simulations") +
   ggtitle('Estimates of Random Effects for Full Data, ef = 0.3') +
   theme_bw()
-ran_full_plot <- ran_full_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
-ran_full_plot
+ran_full_int_plot <- ran_full_int_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+ran_full_int_plot
 ```
 
 ## Effect Size = 0.2
 
-```{r, warning = FALSE, message = FALSE}
-filename_full_0.2 = 'run_sims_full_0.2.csv'
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+filename_full_int_0.2 = 'run_sims_full_int_0.2.csv'
 start_time <- Sys.time()
-sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.2, ef = 0.2))
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_int_0.2, ef = 0.2))
 end_time <- Sys.time()
 end_time - start_time
 ```
 
 ## Effect Size = 0.1
 
-```{r, warning = FALSE, message = FALSE}
-filename_full_0.1 = 'run_sims_full_0.1.csv'
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+filename_full_int_0.1 = 'run_sims_full_int_0.1.csv'
 start_time <- Sys.time()
-sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.1, ef = 0.1))
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_int_0.1, ef = 0.1))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+# Power Calculation with 20 pct. Missing Data and Varying Intercepts and Varying Slopes
+
+## Effect Size = 0.5
+
+```{r,  warning = FALSE, message = FALSE, eval = FALSE}
+run_sims_missing <- function(filename_missing, ef) {
+  
+  dat_sim <- my_sim_data(beta_c  =  ef, 
+                         beta_f = ef,
+                         beta_a = ef,
+                         
+                         beta_ca = ef,
+                         beta_af = ef,
+                         beta_cf = ef,
+                         
+                         beta_cfa = ef)
+  
+  missing_samples <- dat_sim %>%
+    mutate(nas = rbinom(nrow(dat_sim), 1, 1 - .20)) %>%
+    mutate(DV = ifelse(nas == 1, DV, NA)) %>%
+    drop_na()
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
+                    (1 + X_c * X_f | subj_id) + 
+                    (1 | lab_id) + 
+                    (1 | item_id), 
+                  data=missing_samples)
+  
+  sim_results <- broom.mixed::tidy(mod_sim)
+  
+  # append the results to a file
+  append <- file.exists(filename_missing)
+  write_csv(sim_results, filename_missing, append = append)
+  
+  # return the tidy table
+  sim_results
+}
+
+filename_20_missing_0.5 = 'run_sims_20_missing_0.5.csv'
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_20_missing_0.5, ef = 0.5))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Effect Size = 0.4
+
+```{r,  warning = FALSE, message = FALSE, eval = FALSE}
+filename_20_missing_0.4 = 'run_sims_20_missing_0.4.csv'
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_20_missing_0.4, ef = 0.4))
 end_time <- Sys.time()
 end_time - start_time
 ```
 
 
-# Power Calculation with Missing Data
+## Effect Size = 0.3
+
+```{r,  warning = FALSE, message = FALSE, eval = FALSE}
+filename_20_missing_0.3 = 'run_sims_20_missing_0.3.csv'
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_20_missing_0.3, ef = 0.3))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+
+### Visualise Estimates for Fixed Effects:
+
+```{r}
+# read saved simulation data
+sims_20_missing_0.3 <- read_csv(filename_20_missing_0.3, col_types = cols(
+  # makes sure plots display in this order
+  group = col_factor(ordered = TRUE),
+  term = col_factor(ordered = TRUE)
+))
+
+fixed_missing_plot <- sims_20_missing_0.3 %>%
+  filter(effect == "fixed") %>%
+  ungroup() %>%
+  arrange(term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 8)) %>%
+  ggplot(aes(x = row, y = estimate, ymin = estimate-std.error, ymax = estimate+std.error)) +
+  facet_wrap(~term, scales = "free") +
+  geom_pointrange(fatten = 1/2) +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Fixed Effects for 20 pct. Missing Data, ef = 0.3') +
+  theme_bw()
+
+fixed_missing_plot <- fixed_missing_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+fixed_missing_plot
+```
+
+
+### Visualise Estimates for Random Effects:
+
+```{r}
+ran_missing_plot <- sims_20_missing_0.3 %>%
+  filter(effect == "ran_pars") %>%
+  ungroup() %>%
+  arrange(group, term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 13)) %>%
+  ggplot(aes(x = row, y = estimate)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~group + term, scales = "free_y") +
+  theme_bw() +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Random Effects for 20 pct. Missing Data, ef = 0.3') +
+  theme_bw()
+ran_missing_plot <- ran_missing_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+ran_missing_plot
+```
+
+
+## Effect Size = 0.2
+
+```{r,  warning = FALSE, message = FALSE, eval = FALSE}
+filename_20_missing_0.2 = 'run_sims_20_missing_0.2.csv'
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_20_missing_0.2, ef = 0.2))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Effect Size = 0.1
+
+```{r,  warning = FALSE, message = FALSE, eval = FALSE}
+filename_20_missing_0.1 = 'run_sims_20_missing_0.1.csv'
+start_time <- Sys.time()
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_20_missing_0.1, ef = 0.1))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+
+# Power Calculation with 50 pct. Missing Data and Varying Intercepts and Varying Slopes
 
 ## Effect Size = 0.5
 
-```{r,  warning = FALSE, message = FALSE}
+```{r,  warning = FALSE, message = FALSE, eval = FALSE}
 run_sims_missing <- function(filename_missing, ef) {
   
   dat_sim <- my_sim_data(beta_c  =  ef, 
@@ -455,7 +789,11 @@ run_sims_missing <- function(filename_missing, ef) {
     mutate(DV = ifelse(nas == 1, DV, NA)) %>%
     drop_na()
   
-  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + (1 | subj_id) + (1 | lab_id) + (1 | item_id), data=missing_samples)
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
+                    (1 + X_c * X_f | subj_id) + 
+                    (1 | lab_id) + 
+                    (1 | item_id), 
+                  data=missing_samples)
   
   sim_results <- broom.mixed::tidy(mod_sim)
   
@@ -467,19 +805,19 @@ run_sims_missing <- function(filename_missing, ef) {
   sim_results
 }
 
-filename_missing_0.5 = 'run_sims_missing_0.5.csv'
+filename_50_missing_0.5 = 'run_sims_50_missing_0.5.csv'
 start_time <- Sys.time()
-sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_missing_0.5, ef = 0.5))
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_50_missing_0.5, ef = 0.5))
 end_time <- Sys.time()
 end_time - start_time
 ```
 
 ## Effect Size = 0.4
 
-```{r,  warning = FALSE, message = FALSE}
-filename_missing_0.4 = 'run_sims_missing_0.4.csv'
+```{r,  warning = FALSE, message = FALSE, eval = FALSE}
+filename_50_missing_0.4 = 'run_sims_50_missing_0.4.csv'
 start_time <- Sys.time()
-sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_missing_0.4, ef = 0.4))
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_50_missing_0.4, ef = 0.4))
 end_time <- Sys.time()
 end_time - start_time
 ```
@@ -487,10 +825,10 @@ end_time - start_time
 
 ## Effect Size = 0.3
 
-```{r,  warning = FALSE, message = FALSE}
-filename_missing_0.3 = 'run_sims_missing_0.3.csv'
+```{r,  warning = FALSE, message = FALSE, eval = FALSE}
+filename_50_missing_0.3 = 'run_sims_50_missing_0.3.csv'
 start_time <- Sys.time()
-sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_missing_0.3, ef = 0.3))
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_50_missing_0.3, ef = 0.3))
 end_time <- Sys.time()
 end_time - start_time
 ```
@@ -500,13 +838,13 @@ end_time - start_time
 
 ```{r}
 # read saved simulation data
-sims_missing_0.3 <- read_csv(filename_missing_0.3, col_types = cols(
+sims_50_missing_0.3 <- read_csv(filename_50_missing_0.3, col_types = cols(
   # makes sure plots display in this order
   group = col_factor(ordered = TRUE),
   term = col_factor(ordered = TRUE)
 ))
 
-fixed_missing_plot <- sims_missing_0.3 %>%
+fixed_missing_plot <- sims_50_missing_0.3 %>%
   filter(effect == "fixed") %>%
   ungroup() %>%
   arrange(term, estimate) %>%
@@ -516,7 +854,7 @@ fixed_missing_plot <- sims_missing_0.3 %>%
   geom_pointrange(fatten = 1/2) +
   ylab("Estimates") +
   xlab("Simulations") +
-  ggtitle('Estimates of Fixed Effects for Missing Data, ef = 0.3') +
+  ggtitle('Estimates of Fixed Effects for 50 pct. Missing Data, ef = 0.3') +
   theme_bw()
 
 fixed_missing_plot <- fixed_missing_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
@@ -527,18 +865,18 @@ fixed_missing_plot
 ### Visualise Estimates for Random Effects:
 
 ```{r}
-ran_missing_plot <- sims_missing_0.3 %>%
+ran_missing_plot <- sims_20_missing_0.3 %>%
   filter(effect == "ran_pars") %>%
   ungroup() %>%
-  arrange(group, estimate) %>%
-  mutate(row = rep(seq(1:reps), 4)) %>%
+  arrange(group, term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 13)) %>%
   ggplot(aes(x = row, y = estimate)) +
   geom_point(alpha = 0.7) +
-  facet_wrap(~group, scales = "free_y") +
+  facet_wrap(~group + term, scales = "free_y") +
   theme_bw() +
   ylab("Estimates") +
   xlab("Simulations") +
-  ggtitle('Estimates of Random Effects for Missing Data, ef = 0.3') +
+  ggtitle('Estimates of Random Effects for 50 pct. Missing Data, ef = 0.3') +
   theme_bw()
 ran_missing_plot <- ran_missing_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
 ran_missing_plot
@@ -547,27 +885,27 @@ ran_missing_plot
 
 ## Effect Size = 0.2
 
-```{r,  warning = FALSE, message = FALSE}
-filename_missing_0.2 = 'run_sims_missing_0.2.csv'
+```{r,  warning = FALSE, message = FALSE, eval = FALSE}
+filename_50_missing_0.2 = 'run_sims_50_missing_0.2.csv'
 start_time <- Sys.time()
-sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_missing_0.2, ef = 0.2))
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_50_missing_0.2, ef = 0.2))
 end_time <- Sys.time()
 end_time - start_time
 ```
 
 ## Effect Size = 0.1
 
-```{r,  warning = FALSE, message = FALSE}
-filename_missing_0.1 = 'run_sims_missing_0.1.csv'
+```{r,  warning = FALSE, message = FALSE, eval = FALSE}
+filename_50_missing_0.1 = 'run_sims_50_missing_0.1.csv'
 start_time <- Sys.time()
-sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_missing_0.1, ef = 0.1))
+sims_missing <- purrr::map_df(1:reps, ~run_sims_missing(filename_missing = filename_50_missing_0.1, ef = 0.1))
 end_time <- Sys.time()
 end_time - start_time
 ```
 
 # Overview of Power Simulation Results
 
-## Summary Statistics for Power Calculation with Full Data:
+## Summary Statistics for Power Calculation with Full Data and Varying Intercepts and Varying Slopes:
 
 ```{r, message = FALSE, warning = FALSE, echo = FALSE}
 # calculate mean estimates and power for specified alpha
@@ -636,15 +974,15 @@ sim_stats_full <- cbind(sim_stats_full_0.3[,1],
                         sim_stats_full_0.5[,4])
 
 sim_stats_full %>%
-  kbl(caption = "Power for Simulations with Full Data", digits=3, align = "c") %>%
+  kbl(caption = "Power for Simulations with Full Data and Varying Intercepts and Varying Slopes", digits=3, align = "c") %>%
   kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
 ```
 
-## Summary Statistics for Power Calculation with Missing Data:
+## Summary Statistics for Power Calculation with Full Data and Varying Intercepts:
 
 ```{r, message = FALSE, warning = FALSE, echo = FALSE}
-sim_stats_missing_0.5 <-
-  read_csv(filename_missing_0.5, col_types = cols(group = col_factor(ordered = TRUE), 
+sim_stats_full_0.5 <- 
+  read_csv(filename_full_int_0.5, col_types = cols(group = col_factor(ordered = TRUE), 
                                                   term = col_factor(ordered = TRUE))) %>%
   filter(effect == "fixed") %>%
   group_by(term) %>%
@@ -654,8 +992,8 @@ sim_stats_missing_0.5 <-
     "power, ef = 0.5" = mean(p.value < alpha)
   )
 
-sim_stats_missing_0.4 <-
-  read_csv(filename_missing_0.4, col_types = cols(group = col_factor(ordered = TRUE), 
+sim_stats_full_0.4 <-
+  read_csv(filename_full_int_0.4, col_types = cols(group = col_factor(ordered = TRUE), 
                                                   term = col_factor(ordered = TRUE))) %>%
   filter(effect == "fixed") %>%
   group_by(term) %>%
@@ -665,8 +1003,8 @@ sim_stats_missing_0.4 <-
     "power, ef = 0.4" = mean(p.value < alpha)
   )
 
-sim_stats_missing_0.3 <-
-  read_csv(filename_missing_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
+sim_stats_full_0.3 <-
+  read_csv(filename_full_int_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
                                                   term = col_factor(ordered = TRUE))) %>%
   filter(effect == "fixed") %>%
   group_by(term) %>%
@@ -676,8 +1014,8 @@ sim_stats_missing_0.3 <-
     "power, ef = 0.3" = mean(p.value < alpha)
   )
 
-sim_stats_missing_0.2 <-
-  read_csv(filename_missing_0.2, col_types = cols(group = col_factor(ordered = TRUE), 
+sim_stats_full_0.2 <-
+  read_csv(filename_full_int_0.2, col_types = cols(group = col_factor(ordered = TRUE), 
                                                   term = col_factor(ordered = TRUE))) %>%
   filter(effect == "fixed") %>%
   group_by(term) %>%
@@ -687,8 +1025,8 @@ sim_stats_missing_0.2 <-
     "power, ef = 0.2" = mean(p.value < alpha)
   )
 
-sim_stats_missing_0.1 <-
-  read_csv(filename_missing_0.1, col_types = cols(group = col_factor(ordered = TRUE), 
+sim_stats_full_0.1 <-
+  read_csv(filename_full_int_0.1, col_types = cols(group = col_factor(ordered = TRUE), 
                                                   term = col_factor(ordered = TRUE))) %>%
   filter(effect == "fixed") %>%
   group_by(term) %>%
@@ -698,14 +1036,160 @@ sim_stats_missing_0.1 <-
     "power, ef = 0.1" = mean(p.value < alpha)
   )
 
-sim_stats_missing <- cbind(sim_stats_missing_0.1[,1], 
-                           sim_stats_missing_0.1[,4], 
-                           sim_stats_missing_0.2[,4], 
-                           sim_stats_missing_0.3[,4], 
-                           sim_stats_missing_0.4[,4], 
-                           sim_stats_missing_0.5[,4])
+sim_stats_full <- cbind(sim_stats_full_0.3[,1], 
+                        sim_stats_full_0.1[,4], 
+                        sim_stats_full_0.2[,4], 
+                        sim_stats_full_0.3[,4], 
+                        sim_stats_full_0.4[,4], 
+                        sim_stats_full_0.5[,4])
 
-sim_stats_missing %>%
-  kbl(caption = "Power for Simulations with Missing Data", digits=3, align = "c") %>%
+sim_stats_full %>%
+  kbl(caption = "Power for Simulations with Full Data and Varying Intercepts", digits=3, align = "c") %>%
   kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
 ```
+
+## Summary Statistics for Power Calculation with 20 pct. Missing Data and Varying Intercepts and Varying Slopes:
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+sim_stats_20_missing_0.5 <-
+  read_csv(filename_20_missing_0.5, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.5" = mean(p.value < alpha)
+  )
+
+sim_stats_20_missing_0.4 <-
+  read_csv(filename_20_missing_0.4, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.4" = mean(p.value < alpha)
+  )
+
+sim_stats_20_missing_0.3 <-
+  read_csv(filename_20_missing_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.3" = mean(p.value < alpha)
+  )
+
+sim_stats_20_missing_0.2 <-
+  read_csv(filename_20_missing_0.2, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.2" = mean(p.value < alpha)
+  )
+
+sim_stats_20_missing_0.1 <-
+  read_csv(filename_20_missing_0.1, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.1" = mean(p.value < alpha)
+  )
+
+sim_stats_missing <- cbind(sim_stats_20_missing_0.1[,1], 
+                           sim_stats_20_missing_0.1[,4], 
+                           sim_stats_20_missing_0.2[,4], 
+                           sim_stats_20_missing_0.3[,4], 
+                           sim_stats_20_missing_0.4[,4], 
+                           sim_stats_20_missing_0.5[,4])
+
+sim_stats_missing %>%
+  kbl(caption = "Power for Simulations with 20 pct. Missing Data and Varying Intercepts and Slopes", digits=3, align = "c") %>%
+  kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+```
+
+## Summary Statistics for Power Calculation with 50 pct. Missing Data and Varying Intercepts and Varying Slopes:
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+sim_stats_50_missing_0.5 <-
+  read_csv(filename_50_missing_0.5, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.5" = mean(p.value < alpha)
+  )
+
+sim_stats_50_missing_0.4 <-
+  read_csv(filename_50_missing_0.4, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.4" = mean(p.value < alpha)
+  )
+
+sim_stats_50_missing_0.3 <-
+  read_csv(filename_50_missing_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.3" = mean(p.value < alpha)
+  )
+
+sim_stats_50_missing_0.2 <-
+  read_csv(filename_50_missing_0.2, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.2" = mean(p.value < alpha)
+  )
+
+sim_stats_50_missing_0.1 <-
+  read_csv(filename_50_missing_0.1, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power, ef = 0.1" = mean(p.value < alpha)
+  )
+
+sim_stats_missing <- cbind(sim_stats_50_missing_0.1[,1], 
+                           sim_stats_50_missing_0.1[,4], 
+                           sim_stats_50_missing_0.2[,4], 
+                           sim_stats_50_missing_0.3[,4], 
+                           sim_stats_50_missing_0.4[,4], 
+                           sim_stats_50_missing_0.5[,4])
+
+sim_stats_missing %>%
+  kbl(caption = "Power for Simulations with 50 pct. Missing Data and Varying Intercepts and Slopes", digits=3, align = "c") %>%
+  kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+```
+
+
+
+
+
+
