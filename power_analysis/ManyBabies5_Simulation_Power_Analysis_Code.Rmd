@@ -1310,7 +1310,7 @@ sim_stats_50_missing_bias %>%
 
 # Increasing Variance with Trial Number
 
-## Extracting estimates of increasing variance from Anjie Cao's excellent adult pilot data
+## Extracting estimates of increasing variance from the adult pilot data
 
 ```{r}
 #download data from adult pilot study:
