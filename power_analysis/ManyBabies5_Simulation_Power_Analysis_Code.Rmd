@@ -15,8 +15,8 @@ geometry: margin=0.8cm
 ---
 
 ```{r setup, include=FALSE}
-install.packages('pacman')
-pacman::p_load(knitr, # rendering of .Rmd file
+pacman::p_load(brms,
+               knitr, # rendering of .Rmd file
                lme4, # model specification / estimation
                afex, # anova and deriving p-values from lmer
                broom.mixed, # extracting data from model fits 
@@ -24,7 +24,10 @@ pacman::p_load(knitr, # rendering of .Rmd file
                tidyverse, # data wrangling and visualisation
                ggridges, #visualisation
                viridis, # color schemes for visualisation
-               kableExtra
+               kableExtra,
+               cowplot,
+               performance,
+               see
                )
 set.seed(1234)
 opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE, fig.width=12, fig.height=11, fig.fullwidth=TRUE)
@@ -54,6 +57,12 @@ filename_50_missing_0.2 = 'sims/run_sims_50_missing_0.2.csv'
 filename_50_missing_0.3 = 'sims/run_sims_50_missing_0.3.csv'
 filename_50_missing_0.4 = 'sims/run_sims_50_missing_0.4.csv'
 filename_50_missing_0.5 = 'sims/run_sims_50_missing_0.5.csv'
+
+filename_heteroskedasticity = 'sims/filename_heteroskedasticity.csv'
+
+filename_full_0.3_missing_age = 'sims/run_sims_0.3_age_missing.csv'
+filename_full_0.3_missing_trial = 'sims/run_sims_0.3_trial_missing.csv'
+filename_full_0.3_missing_fam = 'sims/run_sims_0.3_fam_missing.csv'
 
 reps <- 500
 ```
@@ -131,7 +140,6 @@ my_sim_data <- function(
   
   # simulate a sample of items
   items <- data.frame(
-    item_id = seq_len(n_simple + n_complex),
     category = rep(c("simple", "complex"), c(n_simple, n_complex)),
     X_c = rep(c(-0.5, 0.5), c(n_simple, n_complex)),
     familiarization = rep(c("short", "medium", "long"), (n_simple + n_complex)/3),
@@ -147,7 +155,9 @@ my_sim_data <- function(
                                item_cfa), r = item_rho,
     varnames = c("I_0", "I_c","I_f","I_a",
                  "I_ca","I_af", "I_cf",
-                 "I_cfa")))
+                 "I_cfa"))
+    ) %>%
+    mutate(item_id = faux::make_id(nrow(.), "I"))
   
   # simulate a sample of subjects
   subjects <- 
@@ -186,13 +196,16 @@ my_sim_data <- function(
     lab_id = rep(labs$lab_id,lab_multiplier)
   )
   
-  
   # cross subject and item IDs 
   temp <- crossing(subjects, items)  %>%
     left_join(lab_subj_dict, by = "subj_id") %>%
-    left_join(labs, by = "lab_id")
+    left_join(labs, by = "lab_id") %>%
+    group_by(subj_id, item_id) %>% 
+    mutate(item_id = sample(item_id)) %>%
+    ungroup() %>%
+    mutate(trial_num = rep(seq(n_simple + n_complex), n_subj))
   
-  temp %>%
+  temp <- temp %>%
     mutate(
       B_0  = beta_0 + S_0 + L_0 + I_0,
       
@@ -919,8 +932,10 @@ sim_stats_full_0.5 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.5" = mean(p.value < alpha)
+    "power, ef = 0.5" = mean(p.value < alpha),
+    "bias, ef = 0.5" = 0.5 - median_estimate
   )
+sim_stats_full_0.5[1,5] <- sim_stats_full_0.5[1,5] - 0.5
 
 sim_stats_full_0.4 <-
   read_csv(filename_full_0.4, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -930,8 +945,11 @@ sim_stats_full_0.4 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.4" = mean(p.value < alpha)
+    "power, ef = 0.4" = mean(p.value < alpha),
+    "bias, ef = 0.4" = 0.4 - median_estimate
   )
+
+sim_stats_full_0.4[1,5] <- sim_stats_full_0.4[1,5] - 0.4
 
 sim_stats_full_0.3 <-
   read_csv(filename_full_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -941,8 +959,11 @@ sim_stats_full_0.3 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.3" = mean(p.value < alpha)
+    "power, ef = 0.3" = mean(p.value < alpha),
+    "bias, ef = 0.3" = 0.3 - median_estimate
   )
+
+sim_stats_full_0.3[1,5] <- sim_stats_full_0.3[1,5] - 0.3
 
 sim_stats_full_0.2 <-
   read_csv(filename_full_0.2, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -952,8 +973,11 @@ sim_stats_full_0.2 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.2" = mean(p.value < alpha)
+    "power, ef = 0.2" = mean(p.value < alpha),
+    "bias, ef = 0.2" = 0.2 - median_estimate
   )
+
+sim_stats_full_0.2[1,5] <- sim_stats_full_0.2[1,5] - 0.2
 
 sim_stats_full_0.1 <-
   read_csv(filename_full_0.1, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -963,8 +987,11 @@ sim_stats_full_0.1 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.1" = mean(p.value < alpha)
+    "power, ef = 0.1" = mean(p.value < alpha),
+    "bias, ef = 0.1" = 0.1 - median_estimate
   )
+
+sim_stats_full_0.1[1,5] <- sim_stats_full_0.1[1,5] - 0.1
 
 sim_stats_full <- cbind(sim_stats_full_0.3[,1], 
                         sim_stats_full_0.1[,4], 
@@ -976,6 +1003,14 @@ sim_stats_full <- cbind(sim_stats_full_0.3[,1],
 sim_stats_full %>%
   kbl(caption = "Power for Simulations with Full Data and Varying Intercepts and Varying Slopes", digits=3, align = "c") %>%
   kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+
+sim_stats_full_bias_int_slope <- 
+  cbind(sim_stats_full_0.3[,1], 
+        sim_stats_full_0.1[,5], 
+        sim_stats_full_0.2[,5], 
+        sim_stats_full_0.3[,5], 
+        sim_stats_full_0.4[,5], 
+        sim_stats_full_0.5[,5])
 ```
 
 ## Summary Statistics for Power Calculation with Full Data and Varying Intercepts:
@@ -989,8 +1024,11 @@ sim_stats_full_0.5 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.5" = mean(p.value < alpha)
+    "power, ef = 0.5" = mean(p.value < alpha),
+    "bias, ef = 0.5" = 0.5 - median_estimate
   )
+
+sim_stats_full_0.5[1,5] <- sim_stats_full_0.5[1,5] - 0.5
 
 sim_stats_full_0.4 <-
   read_csv(filename_full_int_0.4, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1000,8 +1038,11 @@ sim_stats_full_0.4 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.4" = mean(p.value < alpha)
+    "power, ef = 0.4" = mean(p.value < alpha),
+    "bias, ef = 0.4" = 0.4 - median_estimate
   )
+
+sim_stats_full_0.4[1,5] <- sim_stats_full_0.4[1,5] - 0.4
 
 sim_stats_full_0.3 <-
   read_csv(filename_full_int_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1011,8 +1052,11 @@ sim_stats_full_0.3 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.3" = mean(p.value < alpha)
+    "power, ef = 0.3" = mean(p.value < alpha),
+    "bias, ef = 0.3" = 0.3 - median_estimate
   )
+
+sim_stats_full_0.3[1,5] <- sim_stats_full_0.3[1,5] - 0.3
 
 sim_stats_full_0.2 <-
   read_csv(filename_full_int_0.2, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1022,8 +1066,10 @@ sim_stats_full_0.2 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.2" = mean(p.value < alpha)
+    "power, ef = 0.2" = mean(p.value < alpha),
+    "bias, ef = 0.2" = 0.2 - median_estimate
   )
+sim_stats_full_0.2[1,5] <- sim_stats_full_0.2[1,5] - 0.2
 
 sim_stats_full_0.1 <-
   read_csv(filename_full_int_0.1, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1033,8 +1079,10 @@ sim_stats_full_0.1 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.1" = mean(p.value < alpha)
+    "power, ef = 0.1" = mean(p.value < alpha),
+    "bias, ef = 0.1" = 0.1 - median_estimate
   )
+sim_stats_full_0.1[1,5] <- sim_stats_full_0.1[1,5] - 0.1
 
 sim_stats_full <- cbind(sim_stats_full_0.3[,1], 
                         sim_stats_full_0.1[,4], 
@@ -1046,6 +1094,14 @@ sim_stats_full <- cbind(sim_stats_full_0.3[,1],
 sim_stats_full %>%
   kbl(caption = "Power for Simulations with Full Data and Varying Intercepts", digits=3, align = "c") %>%
   kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+
+sim_stats_full_bias_int <- 
+  cbind(sim_stats_full_0.3[,1], 
+        sim_stats_full_0.1[,5], 
+        sim_stats_full_0.2[,5], 
+        sim_stats_full_0.3[,5], 
+        sim_stats_full_0.4[,5], 
+        sim_stats_full_0.5[,5])
 ```
 
 ## Summary Statistics for Power Calculation with 20 pct. Missing Data and Varying Intercepts and Varying Slopes:
@@ -1059,8 +1115,11 @@ sim_stats_20_missing_0.5 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.5" = mean(p.value < alpha)
+    "power, ef = 0.5" = mean(p.value < alpha),
+    "bias, ef = 0.5" = 0.5 - median_estimate
   )
+
+sim_stats_20_missing_0.5[1,5] <- sim_stats_20_missing_0.5[1,5] - 0.5
 
 sim_stats_20_missing_0.4 <-
   read_csv(filename_20_missing_0.4, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1070,8 +1129,11 @@ sim_stats_20_missing_0.4 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.4" = mean(p.value < alpha)
+    "power, ef = 0.4" = mean(p.value < alpha),
+    "bias, ef = 0.4" = 0.4 - median_estimate
   )
+
+sim_stats_20_missing_0.4[1,5] <- sim_stats_20_missing_0.4[1,5] - 0.4
 
 sim_stats_20_missing_0.3 <-
   read_csv(filename_20_missing_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1081,8 +1143,11 @@ sim_stats_20_missing_0.3 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.3" = mean(p.value < alpha)
+    "power, ef = 0.3" = mean(p.value < alpha),
+    "bias, ef = 0.3" = 0.3 - median_estimate
   )
+
+sim_stats_20_missing_0.3[1,5] <- sim_stats_20_missing_0.3[1,5] - 0.3
 
 sim_stats_20_missing_0.2 <-
   read_csv(filename_20_missing_0.2, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1092,8 +1157,11 @@ sim_stats_20_missing_0.2 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.2" = mean(p.value < alpha)
+    "power, ef = 0.2" = mean(p.value < alpha),
+    "bias, ef = 0.2" = 0.2 - median_estimate
   )
+
+sim_stats_20_missing_0.2[1,5] <- sim_stats_20_missing_0.2[1,5] - 0.2
 
 sim_stats_20_missing_0.1 <-
   read_csv(filename_20_missing_0.1, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1103,8 +1171,10 @@ sim_stats_20_missing_0.1 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.1" = mean(p.value < alpha)
+    "power, ef = 0.1" = mean(p.value < alpha),
+    "bias, ef = 0.1" = 0.1 - median_estimate
   )
+sim_stats_20_missing_0.1[1,5] <- sim_stats_20_missing_0.1[1,5] - 0.1
 
 sim_stats_missing <- cbind(sim_stats_20_missing_0.1[,1], 
                            sim_stats_20_missing_0.1[,4], 
@@ -1116,6 +1186,13 @@ sim_stats_missing <- cbind(sim_stats_20_missing_0.1[,1],
 sim_stats_missing %>%
   kbl(caption = "Power for Simulations with 20 pct. Missing Data and Varying Intercepts and Slopes", digits=3, align = "c") %>%
   kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+
+sim_stats_20_missing_bias <- cbind(sim_stats_20_missing_0.1[,1], 
+                           sim_stats_20_missing_0.1[,5], 
+                           sim_stats_20_missing_0.2[,5], 
+                           sim_stats_20_missing_0.3[,5], 
+                           sim_stats_20_missing_0.4[,5], 
+                           sim_stats_20_missing_0.5[,5])
 ```
 
 ## Summary Statistics for Power Calculation with 50 pct. Missing Data and Varying Intercepts and Varying Slopes:
@@ -1129,8 +1206,11 @@ sim_stats_50_missing_0.5 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.5" = mean(p.value < alpha)
+    "power, ef = 0.5" = mean(p.value < alpha),
+    "bias, ef = 0.5" = 0.5 - median_estimate
   )
+
+sim_stats_50_missing_0.5[1,5] <- sim_stats_50_missing_0.5[1,5] - 0.5
 
 sim_stats_50_missing_0.4 <-
   read_csv(filename_50_missing_0.4, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1140,8 +1220,11 @@ sim_stats_50_missing_0.4 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.4" = mean(p.value < alpha)
+    "power, ef = 0.4" = mean(p.value < alpha),
+    "bias, ef = 0.4" = 0.4 - median_estimate
   )
+
+sim_stats_50_missing_0.4[1,5] <- sim_stats_50_missing_0.4[1,5] - 0.4
 
 sim_stats_50_missing_0.3 <-
   read_csv(filename_50_missing_0.3, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1151,8 +1234,11 @@ sim_stats_50_missing_0.3 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.3" = mean(p.value < alpha)
+    "power, ef = 0.3" = mean(p.value < alpha),
+    "bias, ef = 0.3" = 0.3 - median_estimate
   )
+
+sim_stats_50_missing_0.3[1,5] <- sim_stats_50_missing_0.3[1,5] - 0.3
 
 sim_stats_50_missing_0.2 <-
   read_csv(filename_50_missing_0.2, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1162,8 +1248,11 @@ sim_stats_50_missing_0.2 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.2" = mean(p.value < alpha)
+    "power, ef = 0.2" = mean(p.value < alpha),
+    "bias, ef = 0.2" = 0.2 - median_estimate
   )
+
+sim_stats_50_missing_0.2[1,5] <- sim_stats_50_missing_0.2[1,5] - 0.2
 
 sim_stats_50_missing_0.1 <-
   read_csv(filename_50_missing_0.1, col_types = cols(group = col_factor(ordered = TRUE), 
@@ -1173,8 +1262,11 @@ sim_stats_50_missing_0.1 <-
   summarise(
     median_estimate = median(estimate),
     median_se = median(std.error),
-    "power, ef = 0.1" = mean(p.value < alpha)
+    "power, ef = 0.1" = mean(p.value < alpha),
+    "bias, ef = 0.1" = 0.1 - median_estimate
   )
+
+sim_stats_50_missing_0.1[1,5] <- sim_stats_50_missing_0.1[1,5] - 0.1
 
 sim_stats_missing <- cbind(sim_stats_50_missing_0.1[,1], 
                            sim_stats_50_missing_0.1[,4], 
@@ -1186,10 +1278,897 @@ sim_stats_missing <- cbind(sim_stats_50_missing_0.1[,1],
 sim_stats_missing %>%
   kbl(caption = "Power for Simulations with 50 pct. Missing Data and Varying Intercepts and Slopes", digits=3, align = "c") %>%
   kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+
+sim_stats_50_missing_bias <- cbind(sim_stats_50_missing_0.1[,1], 
+                           sim_stats_50_missing_0.1[,5], 
+                           sim_stats_50_missing_0.2[,5], 
+                           sim_stats_50_missing_0.3[,5], 
+                           sim_stats_50_missing_0.4[,5], 
+                           sim_stats_50_missing_0.5[,5])
+```
+
+# Overview of Bias Results
+```{r}
+sim_stats_full_bias_int_slope %>%
+  kbl(caption = "Bias for Simulations with Full Data and Varying Intercepts and Varying Slopes", digits=3, align = "c") %>%
+  kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+
+sim_stats_full_bias_int %>%
+  kbl(caption = "Bias for Simulations with Full Data and Varying Intercepts", digits=3, align = "c") %>%
+  kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+
+sim_stats_20_missing_bias %>%
+  kbl(caption = "Bias for Simulations with 20 pct. Missing Data and Varying Intercepts and Slopes", digits=3, align = "c") %>%
+  kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+
+sim_stats_50_missing_bias %>%
+  kbl(caption = "Bias for Simulations with 50 pct. Missing Data and Varying Intercepts and Slopes", digits=3, align = "c") %>%
+  kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+
 ```
 
 
+# Increasing Variance with Trial Number
 
+## Extracting estimates of increasing variance from the adult pilot data
 
+```{r}
+#download data from adult pilot study:
+adult_data <- read.csv('02_processed_lt_data.csv')
 
+stimulus_info_df <- adult_data %>% 
+  filter(phase == "pref") %>% 
+  mutate(familiar_item = case_when(
+    left_stimulus == "familiar" ~ stimulus_processed_left, 
+    right_stimulus == "familiar" ~ stimulus_processed_right
+  ), 
+        novel_item = case_when(
+    left_stimulus == "novel" ~ stimulus_processed_left, 
+    right_stimulus == "novel" ~ stimulus_processed_right
+  )) %>% 
+  select(subject, block_number, familiar_item, novel_item) %>% 
+  distinct(subject, block_number, .keep_all = TRUE)
+  
+lt_comparison_df <- adult_data %>% 
+  filter(phase == "pref") %>% 
+  group_by(subject, exposure_time, block_number, complexity, gaze_location_type) %>% 
+  summarise(sum_dwell_time = sum(dwell_time)) %>%
+  pivot_wider(names_from = gaze_location_type, 
+              values_from = sum_dwell_time) %>% 
+  ungroup() %>% 
+  left_join(stimulus_info_df, by = c("subject", "block_number")) %>% 
+  rename(familiarization_time = exposure_time, 
+         stimulus_complexity = complexity, 
+         trial_number = block_number, 
+        familiar_looking_time = familiar, 
+         novel_looking_time = novel, 
+         participant = subject) %>% 
+  # currently excluding all the empty trials 
+  filter(!is.na(familiar_looking_time) & !is.na(novel_looking_time))
 
+lt_comparison_df <- lt_comparison_df %>% 
+  mutate(familiarization_time_scaled_centered =
+           log10(familiarization_time) - log10(2000), 
+         contrast_coded_complexity = ifelse(stimulus_complexity == "complex", 0.5, -0.5))
+
+proportion_df <- adult_data %>% 
+  filter(phase == "pref") %>% 
+  group_by(block_number, exposure_time,
+           complexity, gaze_location_type, subject) %>% 
+  summarise(sum_dwell_time = sum(dwell_time, na.rm = TRUE)) %>% 
+  pivot_wider(names_from = gaze_location_type, 
+              values_from = sum_dwell_time) %>% 
+  mutate(familiar = ifelse(is.na(familiar), 0, familiar), 
+         novel = ifelse(is.na(novel), 0, novel)) %>% 
+  mutate(novelty_looking_proportion = novel / (familiar+novel))
+
+dwell_proportion_mean <- mean(proportion_df$novelty_looking_proportion, na.rm = T)
+dwell_proportion_sd <- sd(proportion_df$novelty_looking_proportion, na.rm = T)
+
+adult_data_z <- proportion_df %>%
+  mutate(dwell_time_z = (novelty_looking_proportion - dwell_proportion_mean) / dwell_proportion_sd)
+
+data_on_increase_in_sd <- adult_data_z %>%
+  group_by(block_number) %>%
+  summarise(n = n(), 
+            dwell_time_median = median(dwell_time_z, na.rm = T), 
+            sd_block = sd(dwell_time_z, na.rm = T))
+
+increase_sd_value <- data_on_increase_in_sd$sd_block[12] - data_on_increase_in_sd$sd_block[1]
+increase_sd_value
+```
+
+## Visualisation of adult data in proportions
+
+```{r, warning = FALSE, message = FALSE}
+adult_proportion_plot <- proportion_df %>% 
+  ggplot(aes(x = as.factor(block_number), y = novelty_looking_proportion, color = complexity)) + 
+  geom_jitter(alpha = .3, width = .2) + 
+  stat_summary(aes(x = as.factor(block_number), y = novelty_looking_proportion, color = complexity), position = position_dodge(width = .2)) + 
+  geom_hline(yintercept = 0.5) +
+  scale_color_manual(values=viridis(n = 3)) +
+  ggtitle('Adult Pilot Data in Proportions') +
+  theme_bw() 
+adult_proportion_plot <- adult_proportion_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+adult_proportion_plot
+```
+
+## Visualisation of adult data in z-score
+
+```{r, warning = FALSE, message = FALSE}
+adult_data_z_plot <- adult_data_z %>% 
+  ggplot(aes(x = as.factor(block_number), y = dwell_time_z, color = complexity)) + 
+  geom_jitter(alpha = .3, width = .2) + 
+  stat_summary(aes(x = as.factor(block_number), y = dwell_time_z, color = complexity), position = position_dodge(width = .2)) + 
+  geom_hline(yintercept = 0.0) + 
+  scale_color_manual(values=viridis(n = 3)) +
+  ggtitle('Adult Pilot Data in z-scores') +
+  theme_bw()
+
+adult_data_z_plot <- adult_data_z_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+adult_data_z_plot
+```
+
+## Modification of simulation function to include variance increase
+
+```{r, message = FALSE}
+my_sim_data_variance <- function(
+    increase_sd = increase_sd_value, #Add variance to increase with trial number
+  
+    n_subj      = 1280,   # number of subjects
+    n_simple  =  12,   # number of complex stimuli
+    n_complex =  12,   # number of complex stimuli
+    n_small_fam = 8,   #small familiarization time
+    n_medium_fam = 8,  #medium familiarization time
+    n_high_fam = 8,    #high familiarization time
+    n_lab = 40,
+    
+    beta_0  =  0, # intercept; i.e., the grand mean
+    beta_c  =  0.3, # main effect for complexity
+    beta_f = 0.3, # main effect for familiarization time
+    beta_a = 0.3, # main effect for age
+    
+    beta_ca = 0.3,
+    beta_af = 0.3,
+    beta_cf = 0.3,
+    
+    beta_cfa = 0.3, #main effect for interaction between complexity and familiarization.
+    
+    subject_0   = 0.2, # by-subject random intercept sd
+    
+    subject_c   =  0.2, # by-subject slope complexity sd
+    subject_f = 0.2, # by-subject slope familiarization sd
+    subject_a = 0.2, # by-subject slope age sd
+    
+    subject_ca = 0.2,# by-subject slope for interaction between age and complexity sd
+    subject_af = 0.2, # by-subject slope for interaction between age and familiarization sd
+    subject_cf = 0.2, # by-subject slope complexity*familiarization sd
+    
+    subject_cfa = 0.2, # by-subject slope for interaction between age, complexity and familiarization sd
+
+    subj_rho     =  .2, # correlations between by-subject random effects
+    
+    lab_0 = 0.2, # by-lab random intercept sd
+    
+    lab_c = 0.2, # by-lab slope complexity sd
+    lab_f = 0.2, # by-lab slope familiarization sd
+    lab_a = 0.2, # by-lab slope age sd
+    
+    lab_ca = 0.2, # by-lab slope for interaction between age and complexity sd
+    lab_af = 0.2, # by-lab slope for interaction between age and familiarization sd
+    lab_cf = 0.2, # by-lab random slope complexity*familiarization sd
+    
+    lab_cfa = 0.2, # by-lab slope for interaction between age, complexity and familiarization sd
+    
+    lab_rho = 0.2, # correlations between by-lab random effects
+    
+    item_0 =  0.2, # by-item random intercept sd
+    
+    item_c = 0.2, # by-item slope complexity sd
+    item_f = 0.2, # by-item slope familiarization sd
+    item_a = 0.2, # by-item slope age sd
+    
+    item_ca = 0.2, # by-item slope for interaction between age and complexity sd
+    item_af = 0.2, # by-item slope for interaction between age and familiarization sd
+    item_cf = 0.2, # by-item random slope complexity*familiarization sd
+    
+    item_cfa = 0.2, # by-item slope for interaction between age, complexity and familiarization sd
+    
+    item_rho = 0.2, # correlations between by-item random effects
+    
+    
+    sigma = 0.3 # residual (error) sd
+    ) { # residual (standard deviation)
+  
+  # simulate a sample of items
+  items <- data.frame(
+    item_id = seq_len(n_simple + n_complex),
+    category = rep(c("simple", "complex"), c(n_simple, n_complex)),
+    X_c = rep(c(-0.5, 0.5), c(n_simple, n_complex)),
+    familiarization = rep(c("short", "medium", "long"), (n_simple + n_complex)/3),
+    X_f = rep(c(-0.5, 0, 0.5), (n_simple + n_complex)/3),
+    faux::rnorm_multi(
+    n = n_simple + n_complex, mu = 0, sd = c(item_0, 
+                               item_c, 
+                               item_f,
+                               item_a,
+                               item_ca,
+                               item_af,
+                               item_cf,
+                               item_cfa), r = item_rho,
+    varnames = c("I_0", "I_c","I_f","I_a",
+                 "I_ca","I_af", "I_cf",
+                 "I_cfa"))
+    ) %>%
+    mutate(item_id = faux::make_id(nrow(.), "I"))
+  
+  # simulate a sample of subjects
+  subjects <- 
+    faux::rnorm_multi(
+    n = n_subj, mu = 0, sd = c(subject_0, 
+                               subject_c, 
+                               subject_f,
+                               subject_a,
+                               subject_ca,
+                               subject_af,
+                               subject_cf,
+                               subject_cfa), r = subj_rho,
+    varnames = c("S_0", "S_c","S_f","S_a",
+                 "S_ca","S_af", "S_cf",
+                 "S_cfa")
+  ) %>%
+    mutate(subj_id = faux::make_id(nrow(.), "S")) %>%
+    mutate(X_a = runif(n_subj, min = -0.5, max = 0.5)) 
+  #add subject age measure, sample from distribution from -0.5 to 0.5. #subjects$subj_id <- 1:n_subj
+  
+  labs <- faux::rnorm_multi(
+    n = n_lab, mu = 0, sd = c(lab_0, lab_c, lab_f, lab_a,
+                              lab_ca, lab_af, lab_cf,
+                              lab_cfa), r = lab_rho, 
+    varnames = c("L_0", "L_c","L_f","L_a",
+                 "L_ca","L_af", "L_cf",
+                 "L_cfa")
+  ) %>%
+    mutate(lab_id = faux::make_id(nrow(.), "L"))
+  
+  #create lab and subj nesting structure
+  #Number of subjects must be a multiple of number of labs
+  lab_multiplier = n_subj/n_lab
+  lab_subj_dict <- data.frame(
+    subj_id = subjects$subj_id,
+    lab_id = rep(labs$lab_id,lab_multiplier)
+  )
+  
+  # cross subject and item IDs 
+  temp <- crossing(subjects, items)  %>%
+    left_join(lab_subj_dict, by = "subj_id") %>%
+    left_join(labs, by = "lab_id") %>%
+    group_by(subj_id, item_id) %>% mutate(item_id = sample(item_id)) %>%
+    ungroup() %>%
+    mutate(trial_num = rep(seq(n_simple + n_complex), n_subj))
+      
+  temp <- temp %>%
+    mutate(trial_i_var = ifelse(trial_num > 0, rnorm(nrow(temp), 0, trial_num*(increase_sd / 24)), 0))
+  
+  temp %>%
+    mutate(
+      B_0  = beta_0 + S_0 + L_0 + I_0,
+      
+      B_c  = beta_c + S_c + L_c + I_c,
+      B_f  = beta_f + S_f + L_f + I_f,
+      B_a = beta_a + S_a + L_a + I_a,
+      
+      B_ca = beta_ca + S_ca + L_ca + I_ca,
+      B_af = beta_af + S_af + L_af + I_af,
+      B_cf = beta_cf + S_cf + L_cf + I_cf,
+      
+      B_cfa = beta_cfa + S_cfa + L_cfa + I_cfa,
+      
+      e_si = rnorm(nrow(temp), mean = 0, sd = sigma) + trial_i_var,
+      
+      DV = B_0 + 
+        (B_a * X_a) + (B_c * X_c) + (B_f * X_f) + 
+        (B_cf * X_c * X_f) + (B_af * X_a * X_f) + (B_ca * X_c * X_a) + 
+        (B_cfa * X_c * X_f * X_a) + e_si
+    )
+}
+
+dat_sim <- my_sim_data_variance()
+```
+
+## Visualise the variance increase
+
+```{r}
+#The increase in variance is over 24 trials in this ManyBabies5 case:
+dat_sim <- my_sim_data_variance(increase_sd = increase_sd_value)
+
+plot_trial_num <- dat_sim %>%
+  mutate(trial_num = as.factor(trial_num)) %>%
+  ggplot() +
+  geom_point(aes(y = DV, x = trial_num), position = "jitter", alpha = 0.2, size = 0.2) +
+  geom_violin(aes(y = DV, x = trial_num, fill = trial_num), alpha = 0.2, show.legend = FALSE) +
+  scale_fill_manual(values=viridis(n = 24)) +
+  ggtitle('Increase in Variance across Trial Number') +
+  xlab('Trial Number') +
+  theme_bw()
+
+plot_trial_num <- plot_trial_num + theme(plot.title = element_text(hjust = 0.5, size=20))
+plot_trial_num
+```
+
+## Model building and bias assessment
+
+```{r}
+dat_sim <- my_sim_data_variance(increase_sd = increase_sd_value)
+
+mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
+                    (1 | subj_id) +
+                    (1 | lab_id) +
+                    (1 | item_id),
+                  data=dat_sim)
+
+summary(mod_sim)
+
+plot(mod_sim)
+
+qqnorm(resid(mod_sim))
+qqline(resid(mod_sim))
+
+check_normality(mod_sim)
+check_outliers(mod_sim)
+check_collinearity(mod_sim)
+check_heteroscedasticity(mod_sim)
+```
+
+## Test how many of the models violate homoskedasticity
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+reps <- 200
+
+run_sims_heteroskedasticity <- function(filename_heteroskedasticity) {
+  
+  dat_sim <- my_sim_data_variance(increase_sd = increase_sd_value)
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
+                    (1 | subj_id) +
+                    (1 | lab_id) +
+                    (1 | item_id),
+                  data=dat_sim)
+  
+  heteroskedasticity_results <- as_tibble(check_heteroscedasticity(mod_sim)[1])
+  
+  # append the results to a file
+  append <- file.exists(filename_heteroskedasticity)
+  write_csv(heteroskedasticity_results, filename_heteroskedasticity, append = append)
+  
+  # return the tidy table
+  heteroskedasticity_results
+}
+
+filename_heteroskedasticity = 'sims/filename_heteroskedasticity.csv'
+start_time <- Sys.time()
+heteroskedasticity_results_data <- purrr::map_df(1:reps, ~run_sims_heteroskedasticity(filename_heteroskedasticity = filename_heteroskedasticity))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+## Overview of how many of the models exhibit homoskedasticity
+
+```{r}
+heteroskedasticity_results <- read.csv(filename_heteroskedasticity)
+
+homoskedastic_models <- heteroskedasticity_results %>%
+  filter(value > 0.05)
+
+print(paste0(nrow(homoskedastic_models), "/", nrow(heteroskedasticity_results), " of the models exhibit homoskedasticity"))
+```
+
+## Bayesian robust location-scale regression model
+```{r}
+model_formula <- bf(DV ~ 1 + X_a * X_c * X_f +
+                      (1 | subj_id) + (1 | lab_id) + (1 | item_id),
+                    sigma ~ 1 + trial_num + (1 | subj_id) + (1 | lab_id) + (1 | item_id))
+
+#get_prior(model_formula, data = dat_sim, family = student)
+
+priors1 <- c(prior(normal(0, 0.5), class = Intercept),
+             prior(normal(0, 0.5), class = b),
+             prior(normal(0, 0.5), class = b, dpar = sigma),
+             prior(normal(0.25, 0.3), class = sd),
+             prior(gamma(2, 0.1), class = nu)
+             )
+
+heteroskedasticity_fit <- 
+  brm(data = dat_sim,
+           family = student,
+           model_formula,
+           prior = priors1,
+           sample_prior = "yes",
+           iter = 4000,
+           warmup = 500,
+           #backend = "cmdstanr",
+           #threads = threading(2),
+           file = "heteroskedasticity_fit",
+           cores = 64,
+           chains = 2,
+           save_pars = save_pars(all = TRUE))
+
+pp_check(heteroskedasticity_fit, ndraws = 100)
+
+heteroskedasticity_fit
+```
+
+### Prior-Posterior Update Checks
+```{r}
+#Sample the parameters of interest:
+Posterior_m1 <- as_draws_df(heteroskedasticity_fit)
+
+#Plot the prior-posterior update plot for the intercept:
+ggplot(Posterior_m1) +
+  geom_density(aes(prior_Intercept), fill="steelblue", color="black",alpha=0.6) +
+  geom_density(aes(b_Intercept), fill="#FC4E07", color="black",alpha=0.6) + 
+  theme_classic()
+
+ggplot(Posterior_m1) +
+  geom_density(aes(prior_b_sigma), fill="steelblue", color="black",alpha=0.6) +
+  geom_density(aes(b_sigma_trial_num), fill="#FC4E07", color="black",alpha=0.6) + 
+  theme_classic()
+
+ggplot(Posterior_m1) +
+  geom_density(aes(prior_sd_item_id), fill="steelblue", color="black",alpha=0.6) +
+  geom_density(aes(sd_subj_id__Intercept), fill="#FC4E07", color="black",alpha=0.6) + 
+  geom_density(aes(sd_lab_id__Intercept), fill="#FC4E07", color="black",alpha=0.6) + 
+  geom_density(aes(sd_item_id__Intercept), fill="#FC4E07", color="black",alpha=0.6) + 
+  theme_classic()
+
+ggplot(Posterior_m1) +
+  geom_density(aes(prior_b), fill="steelblue", color="black",alpha=0.6) +
+  geom_density(aes(b_X_a), fill="#FC4E07", color="black",alpha=0.6) + 
+  geom_density(aes(b_X_c), fill="#FC4E07", color="black",alpha=0.6) + 
+  geom_density(aes(b_X_f), fill="#FC4E07", color="black",alpha=0.6) + 
+  theme_classic()
+
+ggplot(Posterior_m1) +
+  geom_density(aes(prior_b), fill="steelblue", color="black",alpha=0.6) +
+  geom_density(aes(`b_X_a:X_c`), fill="#FC4E07", color="black",alpha=0.6) + 
+  geom_density(aes(`b_X_a:X_f`), fill="#FC4E07", color="black",alpha=0.6) + 
+  geom_density(aes(`b_X_c:X_f`), fill="#FC4E07", color="black",alpha=0.6) + 
+  geom_density(aes(`b_X_a:X_c:X_f`), fill="#FC4E07", color="black",alpha=0.6) + 
+  theme_classic()
+
+ggplot(Posterior_m1) +
+  geom_density(aes(prior_nu), fill="steelblue", color="black",alpha=0.6) +
+  geom_density(aes(nu), fill="#FC4E07", color="black",alpha=0.6) +
+  theme_classic()
+```
+
+# Data missing not completely at random
+
+## Simulation of missing data according to increasing infant age
+
+```{r}
+#back to assumptions of equal variance across trials:
+dat_sim <- my_sim_data()
+
+# Proportion of missing data increases with age:
+missing_samples_age <- dat_sim %>%
+  mutate(nas = rbinom(n(), 1, 0.95 - ifelse(X_a > -0.5, (X_a+0.5)*0.50, 0))) %>%
+  mutate(DV = ifelse(nas == 1, DV, NA))
+
+missing_age_plot <- missing_samples_age %>%
+  drop_na() %>%
+  ggplot() +
+  ggtitle("DV as a function of age, missing data") +
+  geom_point(aes(x = X_a, y = DV), alpha = 0.3, size = 0.2, position = "jitter") +
+  geom_smooth(aes(x = X_a, y = DV), method = "lm", se = TRUE, formula = y ~ x) +
+  theme_bw()
+
+missing_age_plot <- missing_age_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+missing_age_plot
+```
+
+### Simulation of models
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+# Number of simulations:
+reps <- 100
+
+# Simulation function:
+run_sims <- function(filename_full, ef) {
+  
+  dat_sim <- my_sim_data(beta_c  =  ef, 
+                         beta_f = ef,
+                         beta_a = ef,
+                         
+                         beta_ca = ef,
+                         beta_af = ef,
+                         beta_cf = ef,
+                         
+                         beta_cfa = ef)
+  
+  missing_samples_age <- dat_sim %>%
+    mutate(nas = rbinom(n(), 1, 0.95 - ifelse(X_a > -0.5, (X_a+0.5)*0.50, 0))) %>%
+    mutate(DV = ifelse(nas == 1, DV, NA))
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
+                    (1 | subj_id) + 
+                    (1 | lab_id) + 
+                    (1 | item_id), 
+                  data=missing_samples_age)
+  
+  sim_results <- broom.mixed::tidy(mod_sim)
+  
+  # append the results to a file
+  append <- file.exists(filename_full)
+  write_csv(sim_results, filename_full, append = append)
+  
+  # return the tidy table
+  sim_results
+}
+
+filename_full_0.3_missing_age = 'sims/run_sims_0.3_age_missing.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.3_missing_age, ef = 0.3))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+### Visualise Estimates for Fixed Effects:
+
+```{r}
+# read saved simulation data
+sims_50_missing_age_0.3 <- read_csv(filename_full_0.3_missing_age, col_types = cols(
+  # makes sure plots display in this order
+  group = col_factor(ordered = TRUE),
+  term = col_factor(ordered = TRUE)
+))
+
+reps <- 100
+
+fixed_missing_age_plot <- sims_50_missing_age_0.3 %>%
+  filter(effect == "fixed") %>%
+  ungroup() %>%
+  arrange(term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 8)) %>%
+  ggplot(aes(x = row, y = estimate, ymin = estimate-std.error, ymax = estimate+std.error)) +
+  facet_wrap(~term, scales = "free") +
+  geom_pointrange(fatten = 1/2) +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Fixed Effects for Missing Data with Age, ef = 0.3') +
+  theme_bw()
+
+fixed_missing_age_plot <- fixed_missing_age_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+fixed_missing_age_plot
+```
+
+### Visualise Estimates for Random Effects:
+
+```{r}
+ran_missing_age_plot <- sims_50_missing_age_0.3 %>%
+  filter(effect == "ran_pars") %>%
+  ungroup() %>%
+  arrange(group, term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 4)) %>%
+  ggplot(aes(x = row, y = estimate)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~group + term, scales = "free_y") +
+  theme_bw() +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Random Effects for Missing Data with Age, ef = 0.3') +
+  theme_bw()
+ran_missing_age_plot <- ran_missing_age_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+ran_missing_age_plot
+```
+
+## Simulation of missing data according to increasing trial number
+
+```{r}
+# Proportion of missing data increases with trial number:
+missing_samples_trial <- dat_sim %>%
+  mutate(nas = rbinom(n(), 1, 0.95 - ifelse(trial_num > 0, trial_num*0.025, 0))) %>%
+  mutate(DV = ifelse(nas == 1, DV, NA))
+
+missing_trialnum_plot <- missing_samples_trial %>%
+  drop_na() %>%
+  ggplot() +
+  geom_point(aes(x = trial_num, y = DV), alpha = 0.3, size = 0.2, position = "jitter") +
+  geom_smooth(aes(x = trial_num, y = DV), method = "lm", se = TRUE, formula = y ~ x) +
+  ggtitle("DV as a function of trial number, missing data") +
+  theme_bw()
+
+missing_trialnum_plot <- missing_trialnum_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+missing_trialnum_plot
+```
+
+### Simulation of models
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+# Number of simulations:
+reps <- 100
+
+# Simulation function:
+run_sims <- function(filename_full, ef) {
+  
+  dat_sim <- my_sim_data(beta_c  =  ef, 
+                         beta_f = ef,
+                         beta_a = ef,
+                         
+                         beta_ca = ef,
+                         beta_af = ef,
+                         beta_cf = ef,
+                         
+                         beta_cfa = ef)
+  
+  missing_samples_trial <- dat_sim %>%
+    mutate(nas = rbinom(n(), 1, 0.95 - ifelse(trial_num > 0, trial_num*0.025, 0))) %>%
+    mutate(DV = ifelse(nas == 1, DV, NA))
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
+                    (1 | subj_id) + 
+                    (1 | lab_id) + 
+                    (1 | item_id), 
+                  data=missing_samples_trial)
+  
+  sim_results <- broom.mixed::tidy(mod_sim)
+  
+  # append the results to a file
+  append <- file.exists(filename_full)
+  write_csv(sim_results, filename_full, append = append)
+  
+  # return the tidy table
+  sim_results
+}
+
+filename_full_0.3_missing_trial = 'sims/run_sims_0.3_trial_missing.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.3_missing_trial, ef = 0.3))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+### Visualise Estimates for Fixed Effects:
+
+```{r}
+# read saved simulation data
+sims_50_missing_trial_0.3 <- read_csv(filename_full_0.3_missing_trial, col_types = cols(
+  # makes sure plots display in this order
+  group = col_factor(ordered = TRUE),
+  term = col_factor(ordered = TRUE)
+))
+
+fixed_missing_trial_plot <- sims_50_missing_trial_0.3 %>%
+  filter(effect == "fixed") %>%
+  ungroup() %>%
+  arrange(term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 8)) %>%
+  ggplot(aes(x = row, y = estimate, ymin = estimate-std.error, ymax = estimate+std.error)) +
+  facet_wrap(~term, scales = "free") +
+  geom_pointrange(fatten = 1/2) +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Fixed Effects for Missing Data with Trial Number, ef = 0.3') +
+  theme_bw()
+
+fixed_missing_trial_plot <- fixed_missing_trial_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+fixed_missing_trial_plot
+```
+
+### Visualise Estimates for Random Effects:
+
+```{r}
+ran_missing_trial_plot <- sims_50_missing_trial_0.3 %>%
+  filter(effect == "ran_pars") %>%
+  ungroup() %>%
+  arrange(group, term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 4)) %>%
+  ggplot(aes(x = row, y = estimate)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~group + term, scales = "free_y") +
+  theme_bw() +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Random Effects for Missing Data with Trial, ef = 0.3') +
+  theme_bw()
+ran_missing_trial_plot <- ran_missing_trial_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+ran_missing_trial_plot
+```
+
+## Simulation of missing data according to increasing familiarisation
+
+```{r}
+# Proportion of missing data increases with familiarisation:
+missing_samples_fam <- dat_sim %>%
+  mutate(nas = rbinom(n(), 1, 0.95 - ifelse(X_f > -0.5, (X_f+0.5)*0.6, 0))) %>%
+  mutate(DV = ifelse(nas == 1, DV, NA))
+
+missing_samples_fam %>%
+  mutate(X_f = as.factor(X_f)) %>%
+  drop_na() %>%
+  ggplot() +
+  geom_point(aes(x = X_f, y = DV), alpha = 0.3, size = 0.2, position = "jitter") +
+  geom_violin(aes(y = DV, x = X_f, fill = familiarization), alpha = 0.2) +
+  theme_bw()
+```
+
+### Simulation of models
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+# Number of simulations:
+reps <- 100
+
+# Simulation function:
+run_sims <- function(filename_full, ef) {
+  
+  dat_sim <- my_sim_data(beta_c  =  ef, 
+                         beta_f = ef,
+                         beta_a = ef,
+                         
+                         beta_ca = ef,
+                         beta_af = ef,
+                         beta_cf = ef,
+                         
+                         beta_cfa = ef)
+  
+  missing_samples_fam <- dat_sim %>%
+    mutate(nas = rbinom(n(), 1, 0.95 - ifelse(X_f > -0.5, (X_f+0.5)*0.6, 0))) %>%
+    mutate(DV = ifelse(nas == 1, DV, NA))
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
+                    (1 | subj_id) + 
+                    (1 | lab_id) + 
+                    (1 | item_id), 
+                  data=missing_samples_fam)
+  
+  sim_results <- broom.mixed::tidy(mod_sim)
+  
+  # append the results to a file
+  append <- file.exists(filename_full)
+  write_csv(sim_results, filename_full, append = append)
+  
+  # return the tidy table
+  sim_results
+}
+
+filename_full_0.3_missing_fam = 'sims/run_sims_0.3_fam_missing.csv'
+start_time <- Sys.time()
+sims <- purrr::map_df(1:reps, ~run_sims(filename_full = filename_full_0.3_missing_fam, ef = 0.3))
+end_time <- Sys.time()
+end_time - start_time
+```
+
+### Visualise Estimates for Fixed Effects:
+```{r}
+# read saved simulation data
+sims_50_missing_fam_0.3 <- read_csv(filename_full_0.3_missing_fam, col_types = cols(
+  # makes sure plots display in this order
+  group = col_factor(ordered = TRUE),
+  term = col_factor(ordered = TRUE)
+))
+
+fixed_missing_fam_plot <- sims_50_missing_fam_0.3 %>%
+  filter(effect == "fixed") %>%
+  ungroup() %>%
+  arrange(term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 8)) %>%
+  ggplot(aes(x = row, y = estimate, ymin = estimate-std.error, ymax = estimate+std.error)) +
+  facet_wrap(~term, scales = "free") +
+  geom_pointrange(fatten = 1/2) +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Fixed Effects for Missing Data with Familiarisation, ef = 0.3') +
+  theme_bw()
+
+fixed_missing_fam_plot <- fixed_missing_fam_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+fixed_missing_fam_plot
+```
+### Visualise Estimates for Random Effects:
+```{r}
+ran_missing_fam_plot <- sims_50_missing_fam_0.3 %>%
+  filter(effect == "ran_pars") %>%
+  ungroup() %>%
+  arrange(group, term, estimate) %>%
+  mutate(row = rep(seq(1:reps), 4)) %>%
+  ggplot(aes(x = row, y = estimate)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~group + term, scales = "free_y") +
+  theme_bw() +
+  ylab("Estimates") +
+  xlab("Simulations") +
+  ggtitle('Estimates of Random Effects for Missing Data with Familiarisation, ef = 0.3') +
+  theme_bw()
+ran_missing_fam_plot <- ran_missing_fam_plot + theme(plot.title = element_text(hjust = 0.5, size=20))
+ran_missing_fam_plot
+```
+
+# Summary Statistics for Power Calculation with Data missing not completely at random
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+alpha <- 0.05
+
+sim_stats_full_0.3_age <- 
+  read_csv(filename_full_0.3_missing_age, 
+           col_types = cols(group = col_factor(ordered = TRUE), 
+                            term = col_factor(ordered = TRUE))) %>%
+  dplyr::filter(effect == "fixed") %>%
+  group_by(term) %>%
+  dplyr::summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "missing with age" = mean(`p.value`< alpha),
+    "age bias, ef = 0.3" = 0.3 - median_estimate)
+
+sim_stats_full_0.3_age[1,5] <- sim_stats_full_0.3_age[1,5] - 0.3
+
+sim_stats_full_0.3_trial <-
+  read_csv(filename_full_0.3_missing_trial, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "missing with trial" = mean(p.value < alpha),
+    "trial bias, ef = 0.3" = 0.3 - median_estimate
+  )
+
+sim_stats_full_0.3_trial[1,5] <- sim_stats_full_0.3_trial[1,5] - 0.3
+
+sim_stats_full_0.3_fam <-
+  read_csv(filename_full_0.3_missing_fam, col_types = cols(group = col_factor(ordered = TRUE), 
+                                                  term = col_factor(ordered = TRUE))) %>%
+  filter(effect == "fixed") %>%
+  group_by(term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "missing with fam" = mean(p.value < alpha),
+    "fam bias, ef = 0.3" = 0.3 - median_estimate
+  )
+
+sim_stats_full_0.3_fam[1,5] <- sim_stats_full_0.3_fam[1,5] - 0.3
+
+sim_stats_full <- cbind(sim_stats_full_0.3_age[,1],
+                        sim_stats_full_0.3_age[,4],
+                        sim_stats_full_0.3_trial[,4], 
+                        sim_stats_full_0.3_fam[,4])
+
+sim_stats_full %>%
+  kbl(caption = "Power for Simulations with Non-Random Missing Data and Varying Intercepts", digits=3, align = "c") %>%
+  kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+
+sim_stats_full_bias <- cbind(sim_stats_full_0.3_age[,1],
+                        sim_stats_full_0.3_age[,5],
+                        sim_stats_full_0.3_trial[,5], 
+                        sim_stats_full_0.3_fam[,5])
+
+sim_stats_full_bias %>%
+  kbl(caption = "Bias for Simulations with Non-Random Missing Data and Varying Intercepts", digits=3, align = "c") %>%
+  kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
+```
+
+# Logistic Regression Models
+
+```{r, eval = FALSE}
+m_missing_age <- glmer(nas ~ X_f + X_a + X_c + trial_num + 
+                         (1 | subj_id) + (1 | lab_id) + (1 | item_id), 
+                       data = missing_samples_age, 
+                       family = binomial)
+
+summary(m_missing_age)
+
+m_missing_fam <- glmer(nas ~ X_f + X_a + X_c + trial_num + 
+                         (1 | subj_id) + (1 | lab_id) + (1 | item_id), 
+                       data = missing_samples_fam, 
+                       family = binomial)
+
+summary(m_missing_fam)
+
+m_missing_trial <- glmer(nas ~ X_f + X_a + X_c + trial_num + 
+                         (1 | subj_id) + (1 | lab_id) + (1 | item_id), 
+                       data = missing_samples_trial, 
+                       family = binomial)
+
+summary(m_missing_trial)
+```
