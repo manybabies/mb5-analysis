@@ -74,11 +74,11 @@ reps <- 500
 ```{r, message = FALSE}
 my_sim_data <- function(
     n_subj      = 1280,   # number of subjects
-    n_simple  =  12,   # number of complex stimuli
-    n_complex =  12,   # number of complex stimuli
-    n_small_fam = 8,   #small familiarization time
-    n_medium_fam = 8,  #medium familiarization time
-    n_high_fam = 8,    #high familiarization time
+    n_simple  =  6,   # number of simple stimuli
+    n_complex =  6,   # number of complex stimuli
+    n_small_fam = 4,   #small familiarization time
+    n_medium_fam = 4,  #medium familiarization time
+    n_high_fam = 4,    #high familiarization time
     n_lab = 40,
     
     beta_0  =  0, # intercept; i.e., the grand mean
@@ -361,7 +361,7 @@ plot_labs <- dat_sim %>%
   ggplot() +
   geom_density_ridges(aes(y = reorder(lab_id, DV), x = DV, color = "black", fill = lab_id), show.legend = FALSE, quantile_lines = TRUE, quantiles = c(0.025, 0.5, 0.975), alpha = 0.4, scale = 1.1) +
   ggtitle('Variability by Lab') +
-  geom_vline(xintercept = 0, color = "black", size = 0.3, linetype = "dotted") +
+  geom_vline(xintercept = 0, color = "black", linewidth = 0.3, linetype = "dotted") +
   xlab('DV') +
   ylab('Lab') +
   xlim(c(-2, 2)) +
@@ -398,7 +398,7 @@ plot_item
 
 ```{r, warning = FALSE, message = FALSE, eval = FALSE}
 # Number of simulations:
-reps <- 350
+reps <- 500
 
 # Simulation function:
 run_sims <- function(filename_full, ef) {
@@ -1288,7 +1288,7 @@ sim_stats_50_missing_bias <- cbind(sim_stats_50_missing_0.1[,1],
 ```
 
 # Overview of Bias Results
-```{r}
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
 sim_stats_full_bias_int_slope %>%
   kbl(caption = "Bias for Simulations with Full Data and Varying Intercepts and Varying Slopes", digits=3, align = "c") %>%
   kable_styling(full_width = T, latex_options = c("striped", "HOLD_position"))
@@ -1416,11 +1416,11 @@ my_sim_data_variance <- function(
     increase_sd = increase_sd_value, #Add variance to increase with trial number
   
     n_subj      = 1280,   # number of subjects
-    n_simple  =  12,   # number of complex stimuli
-    n_complex =  12,   # number of complex stimuli
-    n_small_fam = 8,   #small familiarization time
-    n_medium_fam = 8,  #medium familiarization time
-    n_high_fam = 8,    #high familiarization time
+    n_simple  =  6,   # number of complex stimuli
+    n_complex =  6,   # number of complex stimuli
+    n_small_fam = 4,   #small familiarization time
+    n_medium_fam = 4,  #medium familiarization time
+    n_high_fam = 4,    #high familiarization time
     n_lab = 40,
     
     beta_0  =  0, # intercept; i.e., the grand mean
@@ -1548,7 +1548,7 @@ my_sim_data_variance <- function(
     mutate(trial_num = rep(seq(n_simple + n_complex), n_subj))
       
   temp <- temp %>%
-    mutate(trial_i_var = ifelse(trial_num > 0, rnorm(nrow(temp), 0, trial_num*(increase_sd / 24)), 0))
+    mutate(trial_i_var = ifelse(trial_num > 0, rnorm(nrow(temp), 0, trial_num*(increase_sd / 12)), 0))
   
   temp %>%
     mutate(
@@ -1645,7 +1645,7 @@ run_sims_heteroskedasticity <- function(filename_heteroskedasticity) {
   heteroskedasticity_results
 }
 
-filename_heteroskedasticity = 'sims/filename_heteroskedasticity.csv'
+filename_heteroskedasticity = 'filename_heteroskedasticity.csv'
 start_time <- Sys.time()
 heteroskedasticity_results_data <- purrr::map_df(1:reps, ~run_sims_heteroskedasticity(filename_heteroskedasticity = filename_heteroskedasticity))
 end_time <- Sys.time()
@@ -1664,7 +1664,7 @@ print(paste0(nrow(homoskedastic_models), "/", nrow(heteroskedasticity_results), 
 ```
 
 ## Bayesian robust location-scale regression model
-```{r}
+```{r, eval = FALSE}
 model_formula <- bf(DV ~ 1 + X_a * X_c * X_f +
                       (1 | subj_id) + (1 | lab_id) + (1 | item_id),
                     sigma ~ 1 + trial_num + (1 | subj_id) + (1 | lab_id) + (1 | item_id))
@@ -1699,7 +1699,7 @@ heteroskedasticity_fit
 ```
 
 ### Prior-Posterior Update Checks
-```{r}
+```{r, eval = FALSE}
 #Sample the parameters of interest:
 Posterior_m1 <- as_draws_df(heteroskedasticity_fit)
 
@@ -1867,10 +1867,11 @@ ran_missing_age_plot
 ```{r}
 # Proportion of missing data increases with trial number:
 missing_samples_trial <- dat_sim %>%
-  mutate(nas = rbinom(n(), 1, 0.95 - ifelse(trial_num > 0, trial_num*0.025, 0))) %>%
+  mutate(nas = rbinom(n(), 1, 0.95 - ifelse(trial_num > 0, trial_num*0.05, 0))) %>%
   mutate(DV = ifelse(nas == 1, DV, NA))
 
 missing_trialnum_plot <- missing_samples_trial %>%
+  mutate(trial_num = as.factor(trial_num)) %>%
   drop_na() %>%
   ggplot() +
   geom_point(aes(x = trial_num, y = DV), alpha = 0.3, size = 0.2, position = "jitter") +
@@ -1902,7 +1903,7 @@ run_sims <- function(filename_full, ef) {
                          beta_cfa = ef)
   
   missing_samples_trial <- dat_sim %>%
-    mutate(nas = rbinom(n(), 1, 0.95 - ifelse(trial_num > 0, trial_num*0.025, 0))) %>%
+    mutate(nas = rbinom(n(), 1, 0.95 - ifelse(trial_num > 0, trial_num*0.05, 0))) %>%
     mutate(DV = ifelse(nas == 1, DV, NA))
   
   mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
