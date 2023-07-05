@@ -398,7 +398,7 @@ plot_item
 
 ```{r, warning = FALSE, message = FALSE, eval = FALSE}
 # Number of simulations:
-reps <- 350
+reps <- 500
 
 # Simulation function:
 run_sims <- function(filename_full, ef) {
@@ -1654,7 +1654,7 @@ end_time - start_time
 
 ## Overview of how many of the models exhibit homoskedasticity
 
-```{r, eval = FALSE}
+```{r}
 heteroskedasticity_results <- read.csv(filename_heteroskedasticity)
 
 homoskedastic_models <- heteroskedasticity_results %>%
@@ -1815,7 +1815,7 @@ end_time - start_time
 
 ### Visualise Estimates for Fixed Effects:
 
-```{r, eval = FALSE}
+```{r}
 # read saved simulation data
 sims_50_missing_age_0.3 <- read_csv(filename_full_0.3_missing_age, col_types = cols(
   # makes sure plots display in this order
@@ -1844,7 +1844,7 @@ fixed_missing_age_plot
 
 ### Visualise Estimates for Random Effects:
 
-```{r, eval = FALSE}
+```{r}
 ran_missing_age_plot <- sims_50_missing_age_0.3 %>%
   filter(effect == "ran_pars") %>%
   ungroup() %>%
@@ -1930,7 +1930,7 @@ end_time - start_time
 
 ### Visualise Estimates for Fixed Effects:
 
-```{r, eval = FALSE}
+```{r}
 # read saved simulation data
 sims_50_missing_trial_0.3 <- read_csv(filename_full_0.3_missing_trial, col_types = cols(
   # makes sure plots display in this order
@@ -1957,7 +1957,7 @@ fixed_missing_trial_plot
 
 ### Visualise Estimates for Random Effects:
 
-```{r, eval = FALSE}
+```{r}
 ran_missing_trial_plot <- sims_50_missing_trial_0.3 %>%
   filter(effect == "ran_pars") %>%
   ungroup() %>%
@@ -2039,7 +2039,7 @@ end_time - start_time
 ```
 
 ### Visualise Estimates for Fixed Effects:
-```{r, eval = FALSE}
+```{r}
 # read saved simulation data
 sims_50_missing_fam_0.3 <- read_csv(filename_full_0.3_missing_fam, col_types = cols(
   # makes sure plots display in this order
@@ -2064,7 +2064,7 @@ fixed_missing_fam_plot <- fixed_missing_fam_plot + theme(plot.title = element_te
 fixed_missing_fam_plot
 ```
 ### Visualise Estimates for Random Effects:
-```{r, eval = FALSE}
+```{r}
 ran_missing_fam_plot <- sims_50_missing_fam_0.3 %>%
   filter(effect == "ran_pars") %>%
   ungroup() %>%
@@ -2084,7 +2084,7 @@ ran_missing_fam_plot
 
 # Summary Statistics for Power Calculation with Data missing not completely at random
 
-```{r, message = FALSE, warning = FALSE, echo = FALSE, eval = FALSE}
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
 alpha <- 0.05
 
 sim_stats_full_0.3_age <- 
@@ -2174,7 +2174,7 @@ summary(m_missing_trial)
 ```
 
 # Grid Search Code
-```{r, eval = FALSE}
+```{r}
 n_subjects <- c(1280, 1920, 2560)
 n_trials <- c(12, 18, 24)
 b_parameter <- c(0.3, 0.5, 0.7)
@@ -2300,6 +2300,7 @@ for (i in seq_len(nrow(param_combinations))) {
 }
 ```
 
+
 ```{r}
 # set the directory where the CSV files are located
 setwd("/Users/au620441/Desktop/sims_grid_search")
@@ -2405,5 +2406,19 @@ ggsave(plot = MainEffectGridSearchPlot, file = "Desktop/MainEffectGridSearchPlot
 ggsave(plot = InteractionEffectGridSearchPlot, file = "Desktop/InteractionEffectGridSearchPlot.png", 
        height = 10, 
        width = 15)
+
+
+ggplot(error_bars) +
+  geom_tile(col = "white", lwd = 1.5, linetype = 1, aes(y = power, x = n_subj)) +
+  geom_tile(col = "white", lwd = 1.5, linetype = 1) +
+  
+  geom_text(aes(label = round(estimate, 2)), color = "black", size = 4) +
+  xlab('Acoustic Measure') +
+  ylab('Language') +
+  ggtitle('Heatmap of Acoustic Measures across Languages') +
+  theme_bw()
+
+
+
 ```
 
