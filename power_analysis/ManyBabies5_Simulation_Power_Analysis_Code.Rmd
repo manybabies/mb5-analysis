@@ -120,17 +120,17 @@ my_sim_data <- function(
     
     lab_rho = 0.2, # correlations between by-lab random effects
     
-    item_0 =  0.2, # by-item random intercept sd
+    item_0 =  0.05, # by-item random intercept sd
     
-    item_c = 0.2, # by-item slope complexity sd
-    item_f = 0.2, # by-item slope familiarization sd
-    item_a = 0.2, # by-item slope age sd
+    item_c = 0.05, # by-item slope complexity sd
+    item_f = 0.05, # by-item slope familiarization sd
+    item_a = 0.05, # by-item slope age sd
     
-    item_ca = 0.2, # by-item slope for interaction between age and complexity sd
-    item_af = 0.2, # by-item slope for interaction between age and familiarization sd
-    item_cf = 0.2, # by-item random slope complexity*familiarization sd
+    item_ca = 0.05, # by-item slope for interaction between age and complexity sd
+    item_af = 0.05, # by-item slope for interaction between age and familiarization sd
+    item_cf = 0.05, # by-item random slope complexity*familiarization sd
     
-    item_cfa = 0.2, # by-item slope for interaction between age, complexity and familiarization sd
+    item_cfa = 0.05, # by-item slope for interaction between age, complexity and familiarization sd
     
     item_rho = 0.2, # correlations between by-item random effects
     
@@ -803,7 +803,7 @@ run_sims_missing <- function(filename_missing, ef) {
     drop_na()
   
   mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
-                    (1 + X_c * X_f | subj_id) + 
+                    (1 | subj_id) + 
                     (1 | lab_id) + 
                     (1 | item_id), 
                   data=missing_samples)
@@ -1654,7 +1654,7 @@ end_time - start_time
 
 ## Overview of how many of the models exhibit homoskedasticity
 
-```{r}
+```{r, eval = FALSE}
 heteroskedasticity_results <- read.csv(filename_heteroskedasticity)
 
 homoskedastic_models <- heteroskedasticity_results %>%
@@ -1815,7 +1815,7 @@ end_time - start_time
 
 ### Visualise Estimates for Fixed Effects:
 
-```{r}
+```{r, eval = FALSE}
 # read saved simulation data
 sims_50_missing_age_0.3 <- read_csv(filename_full_0.3_missing_age, col_types = cols(
   # makes sure plots display in this order
@@ -1844,7 +1844,7 @@ fixed_missing_age_plot
 
 ### Visualise Estimates for Random Effects:
 
-```{r}
+```{r, eval = FALSE}
 ran_missing_age_plot <- sims_50_missing_age_0.3 %>%
   filter(effect == "ran_pars") %>%
   ungroup() %>%
@@ -1930,7 +1930,7 @@ end_time - start_time
 
 ### Visualise Estimates for Fixed Effects:
 
-```{r}
+```{r, eval = FALSE}
 # read saved simulation data
 sims_50_missing_trial_0.3 <- read_csv(filename_full_0.3_missing_trial, col_types = cols(
   # makes sure plots display in this order
@@ -1957,7 +1957,7 @@ fixed_missing_trial_plot
 
 ### Visualise Estimates for Random Effects:
 
-```{r}
+```{r, eval = FALSE}
 ran_missing_trial_plot <- sims_50_missing_trial_0.3 %>%
   filter(effect == "ran_pars") %>%
   ungroup() %>%
@@ -2039,7 +2039,7 @@ end_time - start_time
 ```
 
 ### Visualise Estimates for Fixed Effects:
-```{r}
+```{r, eval = FALSE}
 # read saved simulation data
 sims_50_missing_fam_0.3 <- read_csv(filename_full_0.3_missing_fam, col_types = cols(
   # makes sure plots display in this order
@@ -2064,7 +2064,7 @@ fixed_missing_fam_plot <- fixed_missing_fam_plot + theme(plot.title = element_te
 fixed_missing_fam_plot
 ```
 ### Visualise Estimates for Random Effects:
-```{r}
+```{r, eval = FALSE}
 ran_missing_fam_plot <- sims_50_missing_fam_0.3 %>%
   filter(effect == "ran_pars") %>%
   ungroup() %>%
@@ -2084,7 +2084,7 @@ ran_missing_fam_plot
 
 # Summary Statistics for Power Calculation with Data missing not completely at random
 
-```{r, message = FALSE, warning = FALSE, echo = FALSE}
+```{r, message = FALSE, warning = FALSE, echo = FALSE, eval = FALSE}
 alpha <- 0.05
 
 sim_stats_full_0.3_age <- 
@@ -2172,3 +2172,238 @@ m_missing_trial <- glmer(nas ~ X_f + X_a + X_c + trial_num +
 
 summary(m_missing_trial)
 ```
+
+# Grid Search Code
+```{r, eval = FALSE}
+n_subjects <- c(1280, 1920, 2560)
+n_trials <- c(12, 18, 24)
+b_parameter <- c(0.3, 0.5, 0.7)
+sd_parameter <- c(0.1, 0.2, 0.3)
+sigma_parameter <- c(0.1)
+
+
+run_sims_grid_point  <- function(filename_full, subj_n, trial_n, ef, residual_sd, random_var, random_var_item, rho_val) {
+  
+  participants_per_lab<-32
+  
+  n_simple<- trial_n/2
+  n_complex<- trial_n/2
+  n_small_fam<- trial_n/3
+  n_medium_fam<- trial_n/3
+  n_high_fam<- trial_n/3
+  n_lab<-floor(subj_n/participants_per_lab)
+  
+  dat_sim <- my_sim_data(n_subj = subj_n,
+                         n_simple = n_simple,
+                         n_complex = n_complex,
+                         n_small_fam = n_small_fam,
+                         n_medium_fam = n_medium_fam,
+                         n_high_fam = n_high_fam,
+                         n_lab = n_lab,
+                         beta_c  =  ef, 
+                         beta_f = ef,
+                         beta_a = ef,
+                         
+                         beta_ca = ef,
+                         beta_af = ef,
+                         beta_cf = ef,
+                         beta_cfa = ef,
+                         
+                         subject_0 = random_var,
+                         subject_c = random_var,
+                         subject_f = random_var,
+                         subject_a = random_var,
+                         subject_ca = random_var,
+                         subject_af = random_var,
+                         subject_cf = random_var,
+                         subject_cfa = random_var,
+                         subj_rho = rho_val,
+                         
+                         lab_0 = random_var,
+                         lab_c = random_var,
+                         lab_f = random_var,
+                         lab_a = random_var,
+                         lab_ca = random_var,
+                         lab_af = random_var,
+                         lab_cf = random_var,
+                         lab_cfa = random_var,
+                         lab_rho = rho_val,
+                         
+                         item_0 = random_var_item,
+                         item_c = random_var_item,
+                         item_f = random_var_item,
+                         item_a = random_var_item,
+                         item_ca = random_var_item,
+                         item_af = random_var_item,
+                         item_cf = random_var_item,
+                         item_cfa = random_var_item,
+                         item_rho = rho_val,
+                         
+                         sigma = residual_sd,
+                         )
+  
+  mod_sim <- lmer(DV ~ 1 + X_a * X_c * X_f + 
+                    (1 | subj_id) + 
+                    (1 | lab_id) + 
+                    (1 | item_id), 
+                  data=dat_sim)
+  
+  sim_results <- broom.mixed::tidy(mod_sim)
+  
+  # append the results to a file
+  append <- file.exists(filename_full)
+  write_csv(sim_results, filename_full, append = append)
+  
+  # return the tidy table
+  sim_results
+}
+
+reps <- 50
+
+n_subj_values <- c(1280, 1920, 2560)
+trial_n_values <- c(12, 18, 24)
+random_var <- c(0.1, 0.2)
+random_var_item <- c(0.05, 0.1, 0.2)
+b_parameter <- c(0.3, 0.5, 0.7)
+residual_sd <- c(0.1, 0.3)
+
+param_combinations <- expand.grid(n_subj = n_subj_values,
+                                   trial_n = trial_n_values,
+                                   random_var = random_var,
+                                   random_var_item = random_var_item,
+                                   b_parameter = b_parameter,
+                                  residual_sd = residual_sd)
+
+for (i in seq_len(nrow(param_combinations))) {
+  start_time <- Sys.time()
+  
+  sim_params <- param_combinations[i, ]
+  filename_full <- paste0('sims_grid_search/test_grid_search_', 
+                          sim_params$n_subj, '_', 
+                          sim_params$trial_n, '_', 
+                          sim_params$random_var, '_', 
+                          sim_params$random_var_item, '_',
+                          sim_params$b_parameter, '_', 
+                          sim_params$residual_sd, '.csv')
+  
+  sims <- purrr::map_df(1:reps, ~run_sims_grid_point(filename_full = filename_full,
+                                                     subj_n = sim_params$n_subj, 
+                                                     trial_n = sim_params$trial_n, 
+                                                     ef = sim_params$b_parameter, 
+                                                     random_var = sim_params$random_var, 
+                                                     random_var_item = sim_params$random_var_item,
+                                                     residual_sd = sim_params$residual_sd,
+                                                     rho_val = 0.2))
+  
+  end_time <- Sys.time()
+  cat("Simulation", i, "Time elapsed:", end_time - start_time, "\n")
+}
+```
+
+```{r}
+# set the directory where the CSV files are located
+setwd("/Users/au620441/Desktop/sims_grid_search")
+
+# get the file names for CSV files
+file_names <- list.files(pattern = "*\\.csv")
+
+# read in all CSV files into a list of dataframes
+df_list <- purrr::map(file_names, ~{
+  df <- read.csv(.x)
+  df$filename <- .x
+  df
+})
+
+df <- purrr::reduce(df_list, dplyr::bind_rows)
+
+df_per_sim <- df %>%
+  filter(effect == "fixed") %>%
+  group_by(filename, term) %>%
+  summarise(
+    median_estimate = median(estimate),
+    median_se = median(std.error),
+    "power" = mean(p.value < 0.05)) %>%
+  mutate(n_subj = sapply(strsplit(filename, "_"), `[`,4), 
+         Trials = sapply(strsplit(filename, "_"), `[`,5),
+         SubjectSD = sapply(strsplit(filename, "_"), `[`,6),
+         ItemSD = sapply(strsplit(filename, "_"), `[`,7),
+         EffectSize = sapply(strsplit(filename, "_"), `[`,8),
+         residual_sd = as.numeric(str_replace(sapply(strsplit(filename, "_"), `[`,9), pattern = ".csv", "")))
+
+error_bars <- df_per_sim %>%
+  filter(term != "(Intercept)") %>%
+  group_by(EffectSize, SubjectSD, Trials, ItemSD, n_subj, term) %>%
+  dplyr::summarise(power_mean = median(power), 
+                   power_lci = quantile(power, prob = 0.025), 
+                   power_hci = quantile(power, prob = 0.975)) %>%
+  filter(term %in% c("X_a", "X_c", "X_f")) %>%
+  dplyr::rename(Predictor = term) %>%
+  mutate(Predictor = ifelse(Predictor == "X_a", "Age", Predictor)) %>%
+  mutate(Predictor = ifelse(Predictor == "X_c", "Complexity", Predictor)) %>%
+  mutate(Predictor = ifelse(Predictor == "X_f", "Familiarity", Predictor))
+
+MainEffectGridSearchPlot <- ggplot() +
+  geom_point(aes(x = n_subj, y = power_mean, color = Predictor, shape = EffectSize), data = error_bars, size = 2, alpha = 0.8,
+             position = position_jitter(width = 0.2, height = 0)) +
+  geom_hline(yintercept = 0.95, linetype = 2) +
+  scale_color_manual(values = viridis(n = 4)) +
+  #scale_fill_manual(values = brewer.pal(n=8, name = 'Dark2')) +
+  scale_y_continuous(breaks = c(0, 0.25, 0.50, 0.75, 1), limits = c(0.0, 1.00)) +
+  facet_grid(ItemSD ~ SubjectSD + Trials, labeller = label_both) +
+  ggtitle('Power for Main Effects') +
+  xlab("Number of Subjects") +
+  ylab("Power (proportion of runs > 0.05)") +
+  theme_bw() +
+   theme(strip.background = element_rect(color="white", fill="white", size=5, linetype="solid"), 
+        plot.title = element_text(hjust = 0.5, size = 15),
+        strip.text.x = element_text(size = 12, color = "black"),
+        strip.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 13),
+        axis.title.x = element_text(size = 13),
+        axis.text.y = element_text(size = 13),
+        axis.title.y = element_text(size = 13))
+
+
+error_bars <- df_per_sim %>%
+  filter(term != "(Intercept)") %>%
+  group_by(EffectSize, SubjectSD, Trials, ItemSD, n_subj, term) %>%
+  dplyr::summarise(power_mean = median(power), 
+                   power_lci = quantile(power, prob = 0.025), 
+                   power_hci = quantile(power, prob = 0.975)) %>%
+  filter(term %in% c("X_a:X_c", "X_a:X_f", "X_c:X_f", "X_a:X_c:X_f")) %>%
+  dplyr::rename(Predictor = term) %>%
+  mutate(Predictor = ifelse(Predictor == "X_a:X_c", "Age:Complexity", Predictor)) %>%
+  mutate(Predictor = ifelse(Predictor == "X_a:X_f", "Age:Familiarity", Predictor)) %>%
+  mutate(Predictor = ifelse(Predictor == "X_c:X_f", "Complexity:Familiarity", Predictor)) %>%
+  mutate(Predictor = ifelse(Predictor == "X_a:X_c:X_f", "Familiarity:Age:Complexity", Predictor))
+
+InteractionEffectGridSearchPlot <- ggplot() +
+  geom_point(aes(x = n_subj, y = power_mean, color = Predictor, shape = EffectSize), data = error_bars, size = 2, alpha = 0.8,
+             position = position_jitter(width = 0.25, height = 0)) +
+  geom_hline(yintercept = 0.95, linetype = 2) +
+  scale_color_manual(values = viridis(n = 5)) +
+  #scale_fill_manual(values = brewer.pal(n=8, name = 'Dark2')) +
+  scale_y_continuous(breaks = c(0, 0.25, 0.50, 0.75, 1), limits = c(0.0, 1.00)) +
+  facet_grid(ItemSD ~ SubjectSD + Trials, labeller = label_both) +
+  ggtitle('Power for Interaction Effects') +
+  xlab("Number of Subjects") +
+  ylab("Power (proportion of runs > 0.05)") +
+  theme_bw() +
+   theme(strip.background = element_rect(color="white", fill="white", size=5, linetype="solid"), 
+        plot.title = element_text(hjust = 0.5, size = 15),
+        strip.text.x = element_text(size = 12, color = "black"),
+        strip.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 13),
+        axis.title.x = element_text(size = 13),
+        axis.text.y = element_text(size = 13),
+        axis.title.y = element_text(size = 13))
+
+  
+ggsave(plot = MainEffectGridSearchPlot, file = "Desktop/MainEffectGridSearchPlot.png", 
+       height = 10, 
+       width = 15)
+ggsave(plot = InteractionEffectGridSearchPlot, file = "Desktop/InteractionEffectGridSearchPlot.png", 
+       height = 10, 
+       width = 15)
+```
+
