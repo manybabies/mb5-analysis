@@ -398,7 +398,7 @@ plot_item
 
 ```{r, warning = FALSE, message = FALSE, eval = FALSE}
 # Number of simulations:
-reps <- 500
+reps <- 350
 
 # Simulation function:
 run_sims <- function(filename_full, ef) {
@@ -1664,7 +1664,7 @@ print(paste0(nrow(homoskedastic_models), "/", nrow(heteroskedasticity_results), 
 ```
 
 ## Bayesian robust location-scale regression model
-```{r, eval = FALSE}
+```{r}
 model_formula <- bf(DV ~ 1 + X_a * X_c * X_f +
                       (1 | subj_id) + (1 | lab_id) + (1 | item_id),
                     sigma ~ 1 + trial_num + (1 | subj_id) + (1 | lab_id) + (1 | item_id))
@@ -1699,7 +1699,7 @@ heteroskedasticity_fit
 ```
 
 ### Prior-Posterior Update Checks
-```{r, eval = FALSE}
+```{r}
 #Sample the parameters of interest:
 Posterior_m1 <- as_draws_df(heteroskedasticity_fit)
 
